@@ -72,7 +72,7 @@ add_subdirectory(bee2)
 
 if(NOT BEE2_INCLUDE_DIRS)
   set(BEE2_INCLUDE_DIRS 
-    /usr/local/share/ 
+    bee2/include/ 
   )
 endif()
 
