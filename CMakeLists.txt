@@ -56,6 +56,8 @@ endif(CMAKE_BUILD_TYPE STREQUAL "Coverage")
 
 ### Bee2
 
+add_subdirectory(bee2)
+
 if(NOT BEE2_INCLUDE_DIRS)
   set(BEE2_INCLUDE_DIRS 
     /usr/local/share/ 
