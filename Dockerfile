@@ -7,10 +7,11 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install cmake -y -q
 RUN apt-get install -y -q \
 	build-essential \
 	git \
-	libssl-dev
+	libssl-dev \
+	pkg-config
 
 WORKDIR '/usr/src'
-RUN git clone --recurse-submodules https://github.com/bcrypto/bee2evp.git
+RUN git clone --recurse-submodules https://github.com/blackbearman/bee2evp.git
 RUN mkdir ./bee2evp/build
 
 WORKDIR '/usr/src/bee2evp/build'
