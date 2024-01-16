@@ -37,7 +37,7 @@ and/or using OpenSSL is allowed. See Copyright Notices in bee2evp/info.h.
 *******************************************************************************
 \mainpage Криптографический плагин Bee2evp для OpenSSL
 
-\version 1.0.4
+\version 1.0.8
 
 \section toc Содержание
 

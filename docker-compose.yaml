@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  xmlsec:
+    build: .
+    restart: "no"
+    command: bash 
+    volumes:
+      - .:/usr/src
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -114,6 +114,19 @@ static int bee2evp_ctrl(ENGINE* e, int cmd, long i, void* p, void (*f)(void))
 	return 0;
 }
 
+static EVP_PKEY *openssl_load_privkey(ENGINE *eng, const char *key_id, UI_METHOD *ui_method,
+                                      void *callback_data)
+{
+    BIO *in;
+    EVP_PKEY *key;
+    in = BIO_new_file(key_id, "r");
+    if (!in)
+        return NULL;
+    key = PEM_read_bio_PrivateKey(in, NULL, 0, NULL);
+    BIO_free(in);
+    return key;
+}
+
 /*
 *******************************************************************************
 Связывание
