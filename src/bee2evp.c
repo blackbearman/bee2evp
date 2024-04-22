@@ -113,7 +113,7 @@ static int bee2evp_ctrl(ENGINE* e, int cmd, long i, void* p, void (*f)(void))
 	return 0;
 }
 
-static EVP_PKEY *openssl_load_privkey(ENGINE *eng, const char *key_id, UI_METHOD *ui_method,
+static EVP_PKEY *bee2evp_load_privkey(ENGINE *eng, const char *key_id, UI_METHOD *ui_method,
                                       void *callback_data)
 {
     BIO *in;
@@ -150,7 +150,8 @@ static int bee2evp_bind(ENGINE* e, const char* id)
 		!ENGINE_set_finish_function(e, bee2evp_finish) ||
 		!ENGINE_set_destroy_function(e, bee2evp_destroy) ||
 		!ENGINE_set_cmd_defns(e, bee2evp_cmd_defns) ||
-		!ENGINE_set_ctrl_function(e, bee2evp_ctrl))
+		!ENGINE_set_ctrl_function(e, bee2evp_ctrl) ||
+		!ENGINE_set_load_privkey_function(e, bee2evp_load_privkey))
 		return 0;
 	// встроить модули
 	if (!evpBeltCipher_bind(e) ||
