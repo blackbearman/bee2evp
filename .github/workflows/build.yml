@@ -68,8 +68,9 @@ jobs:
         ls -la $local/lib/libbee2evp.so
     - name: Attach Bee2evp
       run: |
-        mv ${local}/openssl.cnf.dist ${local}/openssl.cnf
+        cp ${local}/openssl.cnf.dist ${local}/openssl.cnf
         sed -i "/\[ new\_oids\ ]/i openssl_conf = openssl_init\n[ openssl_init ]\nengines = engine_section\n[ engine_section ]\nbee2evp = bee2evp_section\n[ bee2evp_section ]\nengine_id = bee2evp\ndynamic_path = ${local}/lib/libbee2evp.so\ndefault_algorithms = ALL" ${local}/openssl.cnf
+        cat ${local}/openssl.cnf
     - name: Test Bee2evp
       working-directory: ${{github.workspace}}/build
       continue-on-error: true
