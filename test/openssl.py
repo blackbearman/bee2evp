@@ -30,7 +30,7 @@ def openssl(cmd, prefix='', echo=False, type_=0):
 		out, err_out = p.communicate()
 		print(cmd)
 		print(out)
-		print(err_out
+		print(err_out)
 		retcode = p.poll()
 		return retcode^1, out, err_out
 
