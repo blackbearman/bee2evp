@@ -36,14 +36,14 @@ def bignPubkeyCalc(private_key_file, out_filename):
 
 def bignSign(prkey, hashname, src , dest):
 	plain = b64_encoder(src)[0].decode()
-	prefix = 'echo ' + plain[:-1] + ' | python -m base64 -d |'
+	prefix = 'echo ' + plain[:-1] + ' | python3 -m base64 -d |'
 	cmd = 'dgst -{} -sign {} -out {}'.format(hashname, prkey, dest)
 	retcode, out, er__ = openssl(cmd, prefix=prefix, echo=False)
 	return retcode
 
 def bignSign2(prkey, hashname, src, dest):
 	plain = b64_encoder(src)[0].decode()
-	prefix = 'echo ' + plain[:-1] + ' | python -m base64 -d |'
+	prefix = 'echo ' + plain[:-1] + ' | python3 -m base64 -d |'
 	cmd = 'dgst -{} -sign {} -sigopt sig:deterministic -out {}'.format(
 		hashname, prkey, dest)
 	retcode, out, er__ = openssl(cmd, prefix=prefix, echo=False)
@@ -51,7 +51,7 @@ def bignSign2(prkey, hashname, src, dest):
 
 def bignVerify(prkey, hashname, src, sign_file):
 	plain = b64_encoder(src)[0].decode()
-	prefix = 'echo ' + plain[:-1] + ' | python -m base64 -d |'
+	prefix = 'echo ' + plain[:-1] + ' | python3 -m base64 -d |'
 	cmd = 'dgst -{} -prverify {} -hex -signature {}'.format(
 		hashname, prkey, sign_file)
 	retcode, out, er__ = openssl(cmd, prefix=prefix, echo=False)

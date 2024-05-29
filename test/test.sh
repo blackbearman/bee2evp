@@ -82,7 +82,7 @@ test_bee2evp(){
   export LD_LIBRARY_PATH="$local/lib:${LD_LIBRARY_PATH:-}"
   cd $local || exit
   cp -a ../../test/. .
-  python test.py
+  python3 test.py
 }
 
 #install_prereq

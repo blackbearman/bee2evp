@@ -164,3 +164,14 @@ clock_precision_digits = 0
 ordering = no
 tsa_name = no
 ess_cert_id_chain = no
+
+[req]
+default_bits          = 2048
+default_keyfile       = privkey.pem
+distinguished_name    = req_distinguished_name
+
+[req_distinguished_name]
+countryName                   = Country Name (2 letter code)
+countryName_default           = AU
+commonName                    = Common Name (e.g. server FQDN or YOUR name)
+commonName_max                = 64
