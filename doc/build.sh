@@ -9,7 +9,7 @@ build_bee2=$build_root/build_bee2
 build_openssl=$build_root/build_openssl
 local=$build_root/local
 openssl_branch=OpenSSL_1_1_1i
-openssl_patch=openssl111i.patch
+openssl_patch=OpenSSL_1_1_1i.patch
 
 install_prereq(){
   sudo apt-get update
@@ -25,7 +25,7 @@ update_repos(){
   git submodule update --init
   git clone -b $openssl_branch --depth 1 https://github.com/openssl/openssl $openssl
   cd $openssl
-  git apply $bee2evp/btls/$openssl_patch
+  git apply $bee2evp/btls/patch/$openssl_patch
   cp $bee2evp/btls/btls.c ./ssl/
   cp $bee2evp/btls/btls.h ./ssl/
 }
