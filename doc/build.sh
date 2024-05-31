@@ -50,7 +50,7 @@ build_openssl(){
 
 build_bee2evp(){
   mkdir -p $build_bee2evp && cd $build_bee2evp
-  cmake -DCMAKE_BUILD_TYPE=Release \
+  cmake -DCMAKE_BUILD_TYPE=Debug \
     -DBEE2_LIBRARY_DIRS=$local/lib -DBEE2_INCLUDE_DIRS=$local/include \
     -DOPENSSL_LIBRARY_DIRS=$local/lib -DOPENSSL_INCLUDE_DIRS=$local/include \
     -DLIB_INSTALL_DIR=$local/lib -DCMAKE_INSTALL_PREFIX=$local $bee2evp
@@ -74,7 +74,7 @@ install_prereq
 
 clean
 update_repos
-build_bee2
+#build_bee2
 build_openssl
 build_bee2evp
 attach_bee2evp
