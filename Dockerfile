@@ -11,11 +11,13 @@ RUN apt-get install -y -q \
 	pkg-config \
 	ed
 
-WORKDIR '/usr/src'
-RUN git clone --recurse-submodules https://github.com/blackbearman/bee2evp.git
-RUN mkdir ./bee2evp/build
+COPY . /usr/src
 
-WORKDIR '/usr/src/bee2evp/build'
+WORKDIR '/usr/src'
+RUN git submodule update --init
+RUN mkdir ./build
+
+WORKDIR '/usr/src/build'
 RUN cmake ..
 RUN make
 RUN make install
