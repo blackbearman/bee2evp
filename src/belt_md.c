@@ -18,7 +18,69 @@
 #include <bee2/crypto/belt.h>
 #include "bee2evp/bee2evp.h"
 #include "bee2evp_lcl.h"
+#include "bee2evp/bee2prov.h"
 
+#include <openssl/opensslv.h>
+
+#if OPENSSL_VERSION_MAJOR >= 3
+#include <openssl/core.h>
+#include <openssl/core_dispatch.h>
+#include <openssl/provider.h>
+#include <openssl/err.h>
+#include <openssl/types.h>
+
+/* Digest functions */
+const OSSL_PARAM *md_gettable_params(void *provctx) {
+    /* Return the digest parameters that can be queried (e.g., output size, block size) */
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_size_t("digest-size", NULL),
+        OSSL_PARAM_END
+    };
+    return params;
+}
+
+// Belt-hash
+int provBeltHash_init(void *vctx) {
+    if (vctx == NULL) return 0;
+	beltHashStart(vctx);
+    return 1;
+}
+
+int provBeltHash_update(void *vctx, const unsigned char *data, size_t datalen) {
+    if (vctx == NULL) return 0;
+
+	beltHashStepH(data, datalen, vctx);
+    return 1;
+}
+
+int provBeltHash_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
+    if (vctx == NULL) return 0;
+
+	/* Finalize the digest (simplified example) */
+    if (outsize < 32) return 0;  /* belt-hash produces 32 bytes */
+    beltHashStepG(out, vctx);
+    *outlen = 32;
+    return 1;
+}
+
+void provBeltHash_free(void *vctx) {
+    OPENSSL_free(vctx);
+}
+
+void *provBeltHash_newctx(void *provctx) {
+    return OPENSSL_zalloc(beltHash_keep());
+}
+
+int provBeltHash_get_params(OSSL_PARAM params[]) {
+    OSSL_PARAM *p;
+
+    /* Set the digest size to 32 bytes (belt-hash) */
+    if ((p = OSSL_PARAM_locate(params, "digest-size")) != NULL)
+        return OSSL_PARAM_set_size_t(p, 32);
+    return 1;
+}
+
+#endif // OPENSSL_VERSION_MAJOR >= 3
 /*
 *******************************************************************************
 Алгоритм belt_hash

@@ -19,6 +19,153 @@
 #include "bee2evp/bee2evp.h"
 #include "bee2evp_lcl.h"
 
+#include "bee2evp/bee2prov.h"
+
+#include <openssl/opensslv.h>
+
+#if OPENSSL_VERSION_MAJOR >= 3
+#include <openssl/core.h>
+#include <openssl/core_dispatch.h>
+#include <openssl/provider.h>
+#include <openssl/err.h>
+#include <openssl/types.h>
+
+/// BASH 256
+
+
+/* Digest functions */
+int provBash256_init(void *vctx) {
+    if (vctx == NULL) return 0;
+	bash256Start(vctx);
+    return 1;
+}
+
+int provBash256_update(void *vctx, const unsigned char *data, size_t datalen) {
+    if (vctx == NULL) return 0;
+	bash256StepH(data, datalen, vctx);
+    return 1;
+}
+
+int provBash256_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
+    if (vctx == NULL) return 0;
+
+	/* Finalize the digest (simplified example) */
+    if (outsize < 32) return 0;  /* bash256 produces 32 bytes */
+    bash256StepG(out, vctx);
+    *outlen = 32;
+    return 1;
+}
+
+void provBash256_free(void *vctx) {
+    OPENSSL_free(vctx);
+}
+
+void *provBash256_newctx(void *provctx) {
+    return OPENSSL_zalloc(bash256_keep());
+}
+
+int provBash256_get_params(OSSL_PARAM params[]) {
+    OSSL_PARAM *p;
+
+    /* Set the digest size to 32 bytes (BASH-256) */
+    if ((p = OSSL_PARAM_locate(params, "digest-size")) != NULL)
+        return OSSL_PARAM_set_size_t(p, 32);
+    return 1;
+}
+
+
+/// BASH 384
+
+
+/* Digest functions */
+int provBash384_init(void *vctx) {
+    if (vctx == NULL) return 0;
+	bash384Start(vctx);
+    return 1;
+}
+
+int provBash384_update(void *vctx, const unsigned char *data, size_t datalen) {
+    if (vctx == NULL) return 0;
+
+	bash384StepH(data, datalen, vctx);
+    return 1;
+}
+
+int provBash384_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
+    if (vctx == NULL) return 0;
+
+	/* Finalize the digest (simplified example) */
+    if (outsize < 48) return 0;  /* bash384 produces 48 bytes */
+    bash384StepG(out, vctx);
+    *outlen = 48;
+    return 1;
+}
+
+void provBash384_free(void *vctx) {
+    OPENSSL_free(vctx);
+}
+
+void *provBash384_newctx(void *provctx) {
+    return OPENSSL_zalloc(bash384_keep());
+}
+
+int provBash384_get_params(OSSL_PARAM params[]) {
+    OSSL_PARAM *p;
+
+    /* Set the digest size to 48 bytes (BASH-384) */
+    if ((p = OSSL_PARAM_locate(params, "digest-size")) != NULL)
+        return OSSL_PARAM_set_size_t(p, 48);
+    return 1;
+}
+
+
+
+/// BASH 512
+
+
+/* Digest functions */
+int provBash512_init(void *vctx) {
+    if (vctx == NULL) return 0;
+	bash512Start(vctx);
+    return 1;
+}
+
+int provBash512_update(void *vctx, const unsigned char *data, size_t datalen) {
+    if (vctx == NULL) return 0;
+
+	bash512StepH(data, datalen, vctx);
+    return 1;
+}
+
+int provBash512_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
+    if (vctx == NULL) return 0;
+
+	/* Finalize the digest (simplified example) */
+    if (outsize < 64) return 0;  /* bash512 produces 64 bytes */
+    bash512StepG(out, vctx);
+    *outlen = 64;
+    return 1;
+}
+
+void provBash512_free(void *vctx) {
+    OPENSSL_free(vctx);
+}
+
+void *provBash512_newctx(void *provctx) {
+    return OPENSSL_zalloc(bash512_keep());
+}
+
+int provBash512_get_params(OSSL_PARAM params[]) {
+    OSSL_PARAM *p;
+
+    /* Set the digest size to 64 bytes (SHA-512) */
+    if ((p = OSSL_PARAM_locate(params, "digest-size")) != NULL)
+        return OSSL_PARAM_set_size_t(p, 64);
+    return 1;
+}
+
+#endif // OPENSSL_VERSION_MAJOR >= 3
+
 /*
 *******************************************************************************
 Алгоритмы bash

@@ -78,6 +78,13 @@ in the directory `/usr/local/{include|bin|lib}`.
 openssl engine -c -t bee2evp
 ```
 
+### Build in Docker
+
+```
+docker build --progress="plain" -t btls/bee2evp .
+docker run --rm -it  btls/bee2evp bash
+```
+
 ## BTLS
 
 In [this folder](btls), patches for different versions of OpenSSL are provided. 

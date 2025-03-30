@@ -23,6 +23,187 @@
 #include "bee2evp/bee2evp.h"
 #include "bee2evp_lcl.h"
 
+#include "bee2evp/bee2prov.h"
+
+#include <openssl/opensslv.h>
+
+#if OPENSSL_VERSION_MAJOR >= 3
+#include <openssl/core.h>
+#include <openssl/core_dispatch.h>
+#include <openssl/provider.h>
+#include <openssl/err.h>
+#include <openssl/params.h>
+#include <openssl/types.h>
+#include <string.h>
+#include <stdlib.h>
+
+/* Signature-specific context */
+typedef struct {
+    const OSSL_CORE_HANDLE *core;
+    EVP_PKEY *pkey;                /* Private/Public key */
+    const char *digest_name;       /* Digest name (e.g., "SHA256") */
+    EVP_MD_CTX *md_ctx;            /* Message digest context */
+    int pad_mode;                  /* Padding mode (e.g., PKCS1, PSS) */
+    int salt_len;                  /* Salt length for PSS */
+
+	int params_nid;		/*< идентификатор параметров */	
+	int hash_nid;		/*< рекомендуемый хэш-алгоритм для ЭЦП */
+	u8 flags;			/*< флаги */
+	const EVP_MD* md;	/*< алгоритм хэширования для ЭЦП */
+	blob_t kdf_ukm;		/*< данные для bake-kdf: ukm */
+	int kdf_num;		/*< данные для bake-kdf: номер ключа */
+} BIGN_CTX;
+
+/* Helper function to free the signature context */
+void provBign_freectx(void *vctx) {
+    BIGN_CTX *ctx = (BIGN_CTX *)vctx;
+    if (ctx) {
+        EVP_PKEY_free(ctx->pkey);
+        EVP_MD_CTX_free(ctx->md_ctx);
+        OPENSSL_free(ctx);
+    }
+}
+
+/* Helper function to create a new signature context */
+void *provBign_newctx(void *provctx, const char *propquery) {
+
+    BIGN_CTX *ctx = OPENSSL_zalloc(sizeof(BIGN_CTX));
+    if (ctx == NULL) {
+        return NULL;
+    }
+    ctx->core = provctx;
+    ctx->pkey = NULL;
+    ctx->digest_name = NULL;
+    ctx->md_ctx = EVP_MD_CTX_new();
+    ctx->pad_mode = RSA_PKCS1_PADDING; /* Default padding mode */
+    ctx->salt_len = -2; /* Use default salt length for PSS */
+
+	// инициализировать поля
+	ctx->params_nid = NID_undef;
+	ctx->hash_nid = NID_undef;
+	ctx->flags = 0;
+	ctx->md = 0;
+	ctx->kdf_ukm = 0;
+	ctx->kdf_num = 0;
+    return ctx;
+}
+
+/* Signature initialization (signing) */
+int provBign_sign_init(void *vctx, void *provkey, const OSSL_PARAM params[]) {
+    BIGN_CTX *ctx = (BIGN_CTX *)vctx;
+
+    /* Set the private key for signing */
+    ctx->pkey = EVP_PKEY_dup((EVP_PKEY *)provkey);
+    if (ctx->pkey == NULL) {
+        return 0;
+    }
+
+    /* Process additional parameters if needed */
+    if (params) {
+        const OSSL_PARAM *p;
+        if ((p = OSSL_PARAM_locate_const(params, "digest")) != NULL) {
+            ctx->digest_name = OPENSSL_strdup(p->data);
+        }
+    }
+    return 1;
+}
+
+/* Signature initialization (verification) */
+int provBign_verify_init(void *vctx, void *provkey, const OSSL_PARAM params[]) {
+    BIGN_CTX *ctx = (BIGN_CTX *)vctx;
+
+    /* Set the public key for verification */
+    ctx->pkey = EVP_PKEY_dup((EVP_PKEY *)provkey);
+    if (ctx->pkey == NULL) {
+        return 0;
+    }
+
+    /* Process additional parameters if needed */
+    if (params) {
+        const OSSL_PARAM *p;
+        if ((p = OSSL_PARAM_locate_const(params, "digest")) != NULL) {
+            ctx->digest_name = OPENSSL_strdup(p->data);
+        }
+    }
+
+    return 1;
+}
+
+/* Perform signing */
+int provBign_sign(void *vctx, unsigned char *sig, size_t *siglen, size_t sigsize,
+                              const unsigned char *tbs, size_t tbslen) {
+    BIGN_CTX *ctx = (BIGN_CTX *)vctx;
+
+    if (ctx->pkey == NULL || sig == NULL || siglen == NULL || tbs == NULL) {
+        return 0;
+    }
+
+    EVP_MD_CTX *md_ctx = ctx->md_ctx;
+    const EVP_MD *md = EVP_get_digestbyname(ctx->digest_name);
+    if (md == NULL) {
+        return 0; /* Digest not supported */
+    }
+
+    if (EVP_DigestSignInit(md_ctx, NULL, md, NULL, ctx->pkey) <= 0) {
+        return 0;
+    }
+
+    if (EVP_DigestSignUpdate(md_ctx, tbs, tbslen) <= 0) {
+        return 0;
+    }
+
+    if (EVP_DigestSignFinal(md_ctx, sig, siglen) <= 0) {
+        return 0;
+    }
+
+    if (*siglen > sigsize) {
+        return 0; /* Output buffer too small */
+    }
+
+    return 1;
+}
+
+/* Perform verification */
+int provBign_verify(void *vctx, const unsigned char *sig, size_t siglen,
+                                const unsigned char *tbs, size_t tbslen) {
+    BIGN_CTX *ctx = (BIGN_CTX *)vctx;
+
+    if (ctx->pkey == NULL || sig == NULL || tbs == NULL) {
+        return 0;
+    }
+
+    EVP_MD_CTX *md_ctx = ctx->md_ctx;
+    const EVP_MD *md = EVP_get_digestbyname(ctx->digest_name);
+    if (md == NULL) {
+        return 0; /* Digest not supported */
+    }
+
+    if (EVP_DigestVerifyInit(md_ctx, NULL, md, NULL, ctx->pkey) <= 0) {
+        return 0;
+    }
+
+    if (EVP_DigestVerifyUpdate(md_ctx, tbs, tbslen) <= 0) {
+        return 0;
+    }
+
+    if (EVP_DigestVerifyFinal(md_ctx, sig, siglen) <= 0) {
+        return 0; /* Signature verification failed */
+    }
+
+    return 1;
+}
+
+/* Gettable parameters for signature */
+const OSSL_PARAM *provBign_gettable_params(void *vctx) {
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_size_t("digest-size", NULL),
+        OSSL_PARAM_END
+    };
+    return params;
+}
+
+#endif // OPENSSL_VERSION_MAJOR >= 3
+
 /*
 *******************************************************************************
 Методы ключа bign

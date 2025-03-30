@@ -20,6 +20,7 @@
 #ifndef __BEE2EVP_H
 
 #include <openssl/evp.h>
+#include "bee2/defs.h"
 
 #ifdef __cplusplus
 extern "C" {

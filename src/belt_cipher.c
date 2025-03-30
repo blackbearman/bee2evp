@@ -20,6 +20,128 @@
 #include "bee2evp/bee2evp.h"
 #include "bee2evp_lcl.h"
 
+#include "bee2evp/bee2prov.h"
+
+#include <openssl/opensslv.h>
+
+#if OPENSSL_VERSION_MAJOR >= 3
+
+#include <openssl/core.h>
+#include <openssl/core_dispatch.h>
+#include <openssl/provider.h>
+#include <openssl/err.h>
+#include <openssl/params.h>
+#include <openssl/types.h>
+#include <string.h>
+#include <stdlib.h>
+
+/* Cipher-specific context */
+typedef struct {
+	void* state; 			// inner state
+    size_t keylen;         /* Key length */
+    size_t ivlen;          /* IV length */
+    int encrypt;           /* 1 = encryption, 0 = decryption */
+} belt_ctx;
+
+/* Cipher context cleanup */
+void provBeltECB_freectx(void *vctx) {
+    belt_ctx *ctx = (belt_ctx *)vctx;
+    if (ctx) {
+		blobClose(ctx->state);
+        OPENSSL_free(ctx);
+    }
+}
+
+/* Create a new cipher context */
+void *provBeltECB_newctx(void *provctx) {
+	belt_ctx *ctx = (belt_ctx*) OPENSSL_zalloc(sizeof(belt_ctx));
+    if (ctx == NULL) {
+        return NULL;
+    }
+	ctx->state = blobCreate(beltECB_keep());
+	if (ctx->state == NULL) {
+		OPENSSL_free(ctx);
+        return NULL;
+    }
+    return ctx;
+}
+
+/* Initialize the cipher context for encryption */
+int provBeltECB_encrypt_init(
+	void *vctx, const unsigned char *key, size_t keylen, const unsigned char *iv,
+                                  size_t ivlen, const OSSL_PARAM params[]) {
+	belt_ctx *ctx = (belt_ctx *)vctx;
+	if (key)
+		beltECBStart(ctx->state, key, keylen);
+	ctx->encrypt = 1;
+    return 1;
+}
+
+/* Initialize the cipher context for decryption */
+int provBeltECB_decrypt_init(void *vctx, const unsigned char *key, size_t keylen,
+	const unsigned char *iv, size_t ivlen, const OSSL_PARAM params[]) {
+	belt_ctx *ctx = (belt_ctx *)vctx;
+	if (key)
+		beltECBStart(ctx->state, key, keylen);
+	ctx->encrypt = 0;
+	return 1;
+}
+
+/* Update (perform encryption or decryption on the input data) */
+int provBeltECB_update(void *vctx, unsigned char *out, size_t *outlen,
+                            size_t outsize, const unsigned char *in, size_t inlen) {
+    belt_ctx *ctx = (belt_ctx *)vctx;
+	memMove(out, in, inlen);
+	if (ctx->encrypt)
+		beltECBStepE(out, inlen, ctx->state);
+	else
+		beltECBStepD(out, inlen, ctx->state);
+
+    *outlen = inlen;
+    return 1;
+}
+
+/* Finalize the cipher operation */
+int provBeltECB_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
+    *outlen = 0; /* No additional output for block-based ciphers like ECB */
+    return 1;
+}
+
+int provBeltECB_get_params(OSSL_PARAM params[]) {
+	return 1;
+}
+
+/* Set parameters for the cipher context */
+int provBeltECB_set_ctx_params(void *vctx, const OSSL_PARAM params[]) {
+    return 1;
+}
+
+/* Get parameters for the cipher context */
+const OSSL_PARAM *provBeltECB_gettable_ctx_params(void *provctx) {
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_size_t("keylen", NULL),
+        OSSL_PARAM_size_t("ivlen", NULL),
+        OSSL_PARAM_END
+    };
+    return params;
+}
+
+int provBeltECB_get_ctx_params(void *vctx, OSSL_PARAM *params) {
+    OSSL_PARAM *p;
+    belt_ctx *ctx = (belt_ctx *)vctx;
+    if ((p = OSSL_PARAM_locate(params, "keylen")) != NULL) {
+        if (!OSSL_PARAM_set_size_t(p, ctx->keylen))
+            return 0;
+    }
+
+    if ((p = OSSL_PARAM_locate(params, "ivlen")) != NULL) {
+        if (!OSSL_PARAM_set_size_t(p, ctx->ivlen))
+            return 0;
+    }
+    return 1;
+}
+
+#endif // OPENSSL_VERSION_MAJOR >= 3
 /*
 *******************************************************************************
 Общие замечания
