@@ -33,7 +33,6 @@
 const OSSL_PARAM *md_gettable_params(void *provctx) {
     /* Return the digest parameters that can be queried (e.g., output size, block size) */
     static const OSSL_PARAM params[] = {
-        OSSL_PARAM_size_t("digest-size", NULL),
         OSSL_PARAM_END
     };
     return params;

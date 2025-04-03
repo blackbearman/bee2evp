@@ -141,6 +141,106 @@ int provBeltECB_get_ctx_params(void *vctx, OSSL_PARAM *params) {
     return 1;
 }
 
+
+/* Cipher context cleanup */
+void provBeltCBC_freectx(void *vctx) {
+    belt_ctx *ctx = (belt_ctx *)vctx;
+    if (ctx) {
+		blobClose(ctx->state);
+        OPENSSL_free(ctx);
+    }
+}
+
+/* Create a new cipher context */
+void *provBeltCBC_newctx(void *provctx) {
+	belt_ctx *ctx = (belt_ctx*) OPENSSL_zalloc(sizeof(belt_ctx));
+    if (ctx == NULL) {
+        return NULL;
+    }
+	ctx->state = blobCreate(beltCBC_keep());
+	if (ctx->state == NULL) {
+		OPENSSL_free(ctx);
+        return NULL;
+    }
+    return ctx;
+}
+
+/* Initialize the cipher context for encryption */
+int provBeltCBC_encrypt_init(
+	void *vctx, const unsigned char *key, size_t keylen, const unsigned char *iv,
+                                  size_t ivlen, const OSSL_PARAM params[]) {
+	belt_ctx *ctx = (belt_ctx *)vctx;
+	if (key)
+		beltCBCStart(ctx->state, key, keylen, iv);
+	ctx->encrypt = 1;
+    return 1;
+}
+
+/* Initialize the cipher context for decryption */
+int provBeltCBC_decrypt_init(void *vctx, const unsigned char *key, size_t keylen,
+	const unsigned char *iv, size_t ivlen, const OSSL_PARAM params[]) {
+	belt_ctx *ctx = (belt_ctx *)vctx;
+	if (key)
+		beltCBCStart(ctx->state, key, keylen, iv);
+	ctx->encrypt = 0;
+	return 1;
+}
+
+/* Update (perform encryption or decryption on the input data) */
+int provBeltCBC_update(void *vctx, unsigned char *out, size_t *outlen,
+                            size_t outsize, const unsigned char *in, size_t inlen) {
+    belt_ctx *ctx = (belt_ctx *)vctx;
+	memMove(out, in, inlen);
+	if (ctx->encrypt)
+		beltCBCStepE(out, inlen, ctx->state);
+	else
+		beltCBCStepD(out, inlen, ctx->state);
+
+    *outlen = inlen;
+    return 1;
+}
+
+/* Finalize the cipher operation */
+int provBeltCBC_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
+    *outlen = 0; /* No additional output for block-based ciphers like CBC */
+    return 1;
+}
+
+int provBeltCBC_get_params(OSSL_PARAM params[]) {
+	return 1;
+}
+
+/* Set parameters for the cipher context */
+int provBeltCBC_set_ctx_params(void *vctx, const OSSL_PARAM params[]) {
+    return 1;
+}
+
+/* Get parameters for the cipher context */
+const OSSL_PARAM *provBeltCBC_gettable_ctx_params(void *provctx) {
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_size_t("keylen", NULL),
+        OSSL_PARAM_size_t("ivlen", NULL),
+        OSSL_PARAM_END
+    };
+    return params;
+}
+
+int provBeltCBC_get_ctx_params(void *vctx, OSSL_PARAM *params) {
+    OSSL_PARAM *p;
+    belt_ctx *ctx = (belt_ctx *)vctx;
+    if ((p = OSSL_PARAM_locate(params, "keylen")) != NULL) {
+        if (!OSSL_PARAM_set_size_t(p, ctx->keylen))
+            return 0;
+    }
+
+    if ((p = OSSL_PARAM_locate(params, "ivlen")) != NULL) {
+        if (!OSSL_PARAM_set_size_t(p, ctx->ivlen))
+            return 0;
+    }
+    return 1;
+}
+
+
 #endif // OPENSSL_VERSION_MAJOR >= 3
 /*
 *******************************************************************************
