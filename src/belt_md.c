@@ -33,6 +33,9 @@
 const OSSL_PARAM *md_gettable_params(void *provctx) {
     /* Return the digest parameters that can be queried (e.g., output size, block size) */
     static const OSSL_PARAM params[] = {
+		{"blocksize", OSSL_PARAM_UNSIGNED_INTEGER, NULL, 0, 0},
+        {"size", OSSL_PARAM_UNSIGNED_INTEGER, NULL, 0, 0},
+        {"flags", OSSL_PARAM_UNSIGNED_INTEGER, NULL, 0, 0},
         OSSL_PARAM_END
     };
     return params;
@@ -73,9 +76,14 @@ void *provBeltHash_newctx(void *provctx) {
 int provBeltHash_get_params(OSSL_PARAM params[]) {
     OSSL_PARAM *p;
 
+    /* Set the block size to 32 bytes (belt-hash) */
+    if ((p = OSSL_PARAM_locate(params, "blocksize")) != NULL)
+        return OSSL_PARAM_set_uint(p, 32);
     /* Set the digest size to 32 bytes (belt-hash) */
-    if ((p = OSSL_PARAM_locate(params, "digest-size")) != NULL)
-        return OSSL_PARAM_set_size_t(p, 32);
+    if ((p = OSSL_PARAM_locate(params, "size")) != NULL)
+        return OSSL_PARAM_set_uint(p, 32);
+    if ((p = OSSL_PARAM_locate(params, "flags")) != NULL)
+        return OSSL_PARAM_set_uint(p, EVP_MD_FLAG_DIGALGID_NULL);
     return 1;
 }
 

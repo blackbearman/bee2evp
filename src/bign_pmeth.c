@@ -133,14 +133,13 @@ int provBign_verify_init(void *vctx, void *provkey, const OSSL_PARAM params[]) {
 int provBign_sign(void *vctx, unsigned char *sig, size_t *siglen, size_t sigsize,
                               const unsigned char *tbs, size_t tbslen) {
     BIGN_CTX *ctx = (BIGN_CTX *)vctx;
+	EVP_MD_CTX *md_ctx = ctx->md_ctx;
+    const EVP_MD *md = EVP_get_digestbyname(ctx->digest_name);
 
     if (ctx->pkey == NULL || sig == NULL || siglen == NULL || tbs == NULL) {
         return 0;
     }
 
-    EVP_MD_CTX *md_ctx = ctx->md_ctx;
-    const EVP_MD *md;
-	md = EVP_get_digestbyname(ctx->digest_name);
     if (md == NULL) {
         return 0; /* Digest not supported */
     }
@@ -168,14 +167,13 @@ int provBign_sign(void *vctx, unsigned char *sig, size_t *siglen, size_t sigsize
 int provBign_verify(void *vctx, const unsigned char *sig, size_t siglen,
                                 const unsigned char *tbs, size_t tbslen) {
     BIGN_CTX *ctx = (BIGN_CTX *)vctx;
+    EVP_MD_CTX *md_ctx = ctx->md_ctx; 
+    const EVP_MD *md = EVP_get_digestbyname(ctx->digest_name);;
 
     if (ctx->pkey == NULL || sig == NULL || tbs == NULL) {
         return 0;
     }
 
-    EVP_MD_CTX *md_ctx; 
-	md_ctx= ctx->md_ctx;
-    const EVP_MD *md = EVP_get_digestbyname(ctx->digest_name);
     if (md == NULL) {
         return 0; /* Digest not supported */
     }
