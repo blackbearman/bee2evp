@@ -65,3 +65,6 @@
 openssl
 build
 clear.cmd
+.vscode
+.idea
+.DS_Store
