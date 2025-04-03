@@ -139,7 +139,8 @@ int provBign_sign(void *vctx, unsigned char *sig, size_t *siglen, size_t sigsize
     }
 
     EVP_MD_CTX *md_ctx = ctx->md_ctx;
-    const EVP_MD *md = EVP_get_digestbyname(ctx->digest_name);
+    const EVP_MD *md;
+	md = EVP_get_digestbyname(ctx->digest_name);
     if (md == NULL) {
         return 0; /* Digest not supported */
     }
@@ -172,7 +173,8 @@ int provBign_verify(void *vctx, const unsigned char *sig, size_t siglen,
         return 0;
     }
 
-    EVP_MD_CTX *md_ctx = ctx->md_ctx;
+    EVP_MD_CTX *md_ctx; 
+	md_ctx= ctx->md_ctx;
     const EVP_MD *md = EVP_get_digestbyname(ctx->digest_name);
     if (md == NULL) {
         return 0; /* Digest not supported */
