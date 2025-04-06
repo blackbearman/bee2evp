@@ -47,13 +47,13 @@ int md_get_params(
 	unsigned int flags
 ) {
     OSSL_PARAM *p;
-	p = OSSL_PARAM_locate(params, "blocksize");
+    p = OSSL_PARAM_locate(params, "blocksize");
     if (p != NULL && !OSSL_PARAM_set_uint(p, blocksize))
         return 0;
-	p = OSSL_PARAM_locate(params, "size");
+    p = OSSL_PARAM_locate(params, "size");
     if (p != NULL && !OSSL_PARAM_set_uint(p, size))
         return 0;
-	p = OSSL_PARAM_locate(params, "flags");
+    p = OSSL_PARAM_locate(params, "flags");
     if (p != NULL && !OSSL_PARAM_set_uint(p, flags))
         return 0;
     return 1;
