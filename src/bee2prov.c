@@ -64,7 +64,9 @@ static void bee2_provider_ctx_free(void *provctx) {
 }
 
 /* Provider initialization function */
-static void *bee2_provider_ctx_new(const OSSL_CORE_HANDLE *core, const OSSL_DISPATCH *in) {
+static void *bee2_provider_ctx_new(
+    const OSSL_CORE_HANDLE *core, const OSSL_DISPATCH *in
+) {
     BEE2_PROVIDER_CTX *ctx = OPENSSL_zalloc(sizeof(BEE2_PROVIDER_CTX));
     if (!ctx) {
         return NULL;
@@ -74,64 +76,17 @@ static void *bee2_provider_ctx_new(const OSSL_CORE_HANDLE *core, const OSSL_DISP
 }
 
 
-/* Digest method structure */
-static const OSSL_DISPATCH provBeltHash_functions[] = {
-    { OSSL_FUNC_DIGEST_NEWCTX, (void (*)(void))provBeltHash_newctx },
-    { OSSL_FUNC_DIGEST_INIT, (void (*)(void))provBeltHash_init },
-    { OSSL_FUNC_DIGEST_UPDATE, (void (*)(void))provBeltHash_update },
-    { OSSL_FUNC_DIGEST_FINAL, (void (*)(void))provBeltHash_final },
-    { OSSL_FUNC_DIGEST_FREECTX, (void (*)(void))provBeltHash_free },
-    { OSSL_FUNC_DIGEST_GETTABLE_PARAMS, (void (*)(void))md_gettable_params },
-    { OSSL_FUNC_DIGEST_GET_PARAMS, (void (*)(void))provBeltHash_get_params },
-    { 0, NULL }
-};
-
-/* Digest method structure */
-static const OSSL_DISPATCH provBash256_functions[] = {
-    { OSSL_FUNC_DIGEST_NEWCTX, (void (*)(void))provBash256_newctx },
-    { OSSL_FUNC_DIGEST_INIT, (void (*)(void))provBash256_init },
-    { OSSL_FUNC_DIGEST_UPDATE, (void (*)(void))provBash256_update },
-    { OSSL_FUNC_DIGEST_FINAL, (void (*)(void))provBash256_final },
-    { OSSL_FUNC_DIGEST_FREECTX, (void (*)(void))provBash256_free },
-    { OSSL_FUNC_DIGEST_GETTABLE_PARAMS, (void (*)(void))md_gettable_params },
-    { OSSL_FUNC_DIGEST_GET_PARAMS, (void (*)(void))provBash256_get_params },
-    { 0, NULL }
-};
-
-/* Digest method structure */
-static const OSSL_DISPATCH provBash384_functions[] = {
-    { OSSL_FUNC_DIGEST_NEWCTX, (void (*)(void))provBash384_newctx },
-    { OSSL_FUNC_DIGEST_INIT, (void (*)(void))provBash384_init },
-    { OSSL_FUNC_DIGEST_UPDATE, (void (*)(void))provBash384_update },
-    { OSSL_FUNC_DIGEST_FINAL, (void (*)(void))provBash384_final },
-    { OSSL_FUNC_DIGEST_FREECTX, (void (*)(void))provBash384_free },
-    { OSSL_FUNC_DIGEST_GETTABLE_PARAMS, (void (*)(void))md_gettable_params },
-    { OSSL_FUNC_DIGEST_GET_PARAMS, (void (*)(void))provBash384_get_params },
-    { 0, NULL }
-};
-
-/* Digest method structure */
-static const OSSL_DISPATCH provBash512_functions[] = {
-    { OSSL_FUNC_DIGEST_NEWCTX, (void (*)(void))provBash512_newctx },
-    { OSSL_FUNC_DIGEST_INIT, (void (*)(void))provBash512_init },
-    { OSSL_FUNC_DIGEST_UPDATE, (void (*)(void))provBash512_update },
-    { OSSL_FUNC_DIGEST_FINAL, (void (*)(void))provBash512_final },
-    { OSSL_FUNC_DIGEST_FREECTX, (void (*)(void))provBash512_free },
-    { OSSL_FUNC_DIGEST_GETTABLE_PARAMS, (void (*)(void))md_gettable_params },
-    { OSSL_FUNC_DIGEST_GET_PARAMS, (void (*)(void))provBash512_get_params },
-    { 0, NULL }
-};
-
 /* Supported digests */
-static const OSSL_ALGORITHM bee2_provider_digests[] = {
-    { "belt-hash:1.2.112.0.2.0.34.101.31.81", "provider=bee2pro", provBeltHash_functions, 
-    "The Belt hashing algorithm (belt-hash)"},
-    { "bash256:1.2.112.0.2.0.34.101.77.11", "provider=bee2pro", provBash256_functions, 
-    "The Bash hashing algorithm (bash256)"},
-    { "bash384:1.2.112.0.2.0.34.101.77.12", "provider=bee2pro", provBash384_functions, 
-    "The Bash hashing algorithm (bash384)"},
-    { "bash512:1.2.112.0.2.0.34.101.77.13", "provider=bee2pro", provBash512_functions, 
-    "The Bash hashing algorithm (bash512)"},
+static const OSSL_ALGORITHM bee2_provider_digests[] = 
+{
+    { "belt-hash:1.2.112.0.2.0.34.101.31.81", "provider=bee2pro", 
+        provBeltHash_functions, "The Belt hashing algorithm (belt-hash)"},
+    { "bash256:1.2.112.0.2.0.34.101.77.11", "provider=bee2pro", 
+        provBash256_functions, "The Bash hashing algorithm (bash256)"},
+    { "bash384:1.2.112.0.2.0.34.101.77.12", "provider=bee2pro", 
+        provBash384_functions, "The Bash hashing algorithm (bash384)"},
+    { "bash512:1.2.112.0.2.0.34.101.77.13", "provider=bee2pro", 
+        provBash512_functions, "The Bash hashing algorithm (bash512)"},
     { NULL, NULL, NULL, NULL }
 };
 
@@ -178,13 +133,16 @@ static const OSSL_ALGORITHM bee2_provider_signatures[] = {
 };
 
 /* Provider query function: Returns the operations supported by this provider */
-static const OSSL_ALGORITHM *bee2_provider_query_operation(void *provctx, int operation_id, int *no_cache) {
+static const OSSL_ALGORITHM *bee2_provider_query_operation(
+    void *provctx, int operation_id, int *no_cache
+) {
     /* Return the list of algorithms implemented for the requested operation_id */
     /* Example: Provide algorithms for OSSL_OP_DIGEST (hashing), OSSL_OP_CIPHER, etc. */
     *no_cache = 0; /* Set to 1 if you don't want OpenSSL to cache the result */
     switch (operation_id) {
-        case OSSL_OP_SIGNATURE:
-            return bee2_provider_signatures;
+        // case OSSL_OP_SIGNATURE:
+        //     printf("11-provider signatures\n");
+        //     return bee2_provider_signatures;
         case OSSL_OP_DIGEST:
             /* Return supported digest algorithms */
             return bee2_provider_digests; 
@@ -203,23 +161,26 @@ static void bee2_provider_teardown(void *provctx) {
 
 /* Provider dispatch table: Lists the functions implemented by the provider */
 static const OSSL_DISPATCH bee2_provider_dispatch_table[] = {
-    { OSSL_FUNC_PROVIDER_GETTABLE_PARAMS, (void (*)(void))bee2_provider_gettable_params },
+    { OSSL_FUNC_PROVIDER_GETTABLE_PARAMS, 
+        (void (*)(void))bee2_provider_gettable_params },
     { OSSL_FUNC_PROVIDER_GET_PARAMS, (void (*)(void))bee2_provider_get_params },
     { OSSL_FUNC_PROVIDER_TEARDOWN, (void (*)(void))bee2_provider_teardown },
-    { OSSL_FUNC_PROVIDER_QUERY_OPERATION, (void (*)(void))bee2_provider_query_operation },
+    { OSSL_FUNC_PROVIDER_QUERY_OPERATION, 
+        (void (*)(void))bee2_provider_query_operation },
     { 0, NULL } /* Terminate the list */
 };
 
 /* Provider entry point: Called by OpenSSL to initialize the provider */
-int OSSL_provider_init(const OSSL_CORE_HANDLE *core, const OSSL_DISPATCH *in,
-                       const OSSL_DISPATCH **out, void **provctx) {
+int OSSL_provider_init(
+    const OSSL_CORE_HANDLE *core, const OSSL_DISPATCH *in, 
+    const OSSL_DISPATCH **out, void **provctx
+) {
     /* Allocate and initialize provider context */
     *provctx = bee2_provider_ctx_new(core, in);
     if (*provctx == NULL) {
         ERR_raise(ERR_LIB_PROV, ERR_R_MALLOC_FAILURE);
         return 0; /* Initialization failed */
     }
-
     /* Set the dispatch table */
     *out = bee2_provider_dispatch_table;
     return 1; /* Initialization successful */

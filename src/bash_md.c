@@ -19,150 +19,141 @@
 #include "bee2evp/bee2evp.h"
 #include "bee2evp_lcl.h"
 
-#include "bee2evp/bee2prov.h"
-
 #include <openssl/opensslv.h>
 
 #if OPENSSL_VERSION_MAJOR >= 3
-#include <openssl/core.h>
-#include <openssl/core_dispatch.h>
-#include <openssl/provider.h>
-#include <openssl/err.h>
-#include <openssl/types.h>
+#include "bee2evp/bee2prov.h"
+#include <openssl/params.h>
+
+typedef struct bash_ctx
+{	
+	void* state;		/* идентификатор параметров */	
+	size_t md_len;		/* идентификатор параметров */	
+} bash_ctx;
+
+/* Bash functions */
+static int provBash_init(void *vctx) 
+{
+	bash_ctx* ctx = (bash_ctx*) vctx;
+    if (ctx == NULL) 
+		return 0;
+	bashHashStart(ctx->state, ctx->md_len * 4);
+    return 1;
+}
+
+static int provBash_update(
+	void *vctx, const unsigned char *data, size_t datalen
+) {
+	bash_ctx* ctx = (bash_ctx*) vctx;
+    if (ctx == NULL) 
+		return 0;
+	bashHashStepH(data, datalen, ctx->state);
+    return 1;
+}
+
+static int provBash_final(
+	void *vctx, unsigned char *out, size_t *outlen, size_t outsize
+) {
+	bash_ctx* ctx = (bash_ctx*) vctx;
+    if (ctx == NULL) 
+		return 0;
+
+	/* Finalize the digest (simplified example) */
+    if (outsize < ctx->md_len) return 0;  /* bash256 produces 32 bytes */
+	bashHashStepG(out, ctx->md_len, ctx->state);
+    *outlen = ctx->md_len;
+    return 1;
+}
+
+static void provBash_free(void *vctx) 
+{
+	blob_t blob = (blob_t) vctx;
+    blobClose(blob);
+}
+
+static void* provBash_newctx(size_t md_len) 
+{
+    blob_t blob = blobCreate(sizeof(bash_ctx)+bashHash_keep());
+	bash_ctx* ctx = (bash_ctx*) blob;
+	ctx->state = (void*) blob + sizeof(bash_ctx);
+	ctx->md_len = md_len;
+	return ctx;
+}
 
 /// BASH 256
 
-
-/* Digest functions */
-int provBash256_init(void *vctx) {
-    if (vctx == NULL) return 0;
-	bash256Start(vctx);
-    return 1;
+static void* provBash256_newctx(void *provctx) 
+{
+    return provBash_newctx(32);
 }
 
-int provBash256_update(void *vctx, const unsigned char *data, size_t datalen) {
-    if (vctx == NULL) return 0;
-	bash256StepH(data, datalen, vctx);
-    return 1;
+static int provBash256_get_params(OSSL_PARAM params[]) 
+{
+    return md_get_params(params, 32, 32, EVP_MD_FLAG_DIGALGID_NULL);
 }
-
-int provBash256_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
-    if (vctx == NULL) return 0;
-
-	/* Finalize the digest (simplified example) */
-    if (outsize < 32) return 0;  /* bash256 produces 32 bytes */
-    bash256StepG(out, vctx);
-    *outlen = 32;
-    return 1;
-}
-
-void provBash256_free(void *vctx) {
-    OPENSSL_free(vctx);
-}
-
-void *provBash256_newctx(void *provctx) {
-    return OPENSSL_zalloc(bash256_keep());
-}
-
-int provBash256_get_params(OSSL_PARAM params[]) {
-    OSSL_PARAM *p;
-
-    /* Set the digest size to 32 bytes (BASH-256) */
-    if ((p = OSSL_PARAM_locate(params, "digest-size")) != NULL)
-        return OSSL_PARAM_set_size_t(p, 32);
-    return 1;
-}
-
 
 /// BASH 384
 
-
-/* Digest functions */
-int provBash384_init(void *vctx) {
-    if (vctx == NULL) return 0;
-	bash384Start(vctx);
-    return 1;
+static void* provBash384_newctx(void *provctx) 
+{
+	return provBash_newctx(48);
 }
 
-int provBash384_update(void *vctx, const unsigned char *data, size_t datalen) {
-    if (vctx == NULL) return 0;
-
-	bash384StepH(data, datalen, vctx);
-    return 1;
+static int provBash384_get_params(OSSL_PARAM params[]) 
+{
+    return md_get_params(params, 48, 48, EVP_MD_FLAG_DIGALGID_NULL);
 }
-
-int provBash384_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
-    if (vctx == NULL) return 0;
-
-	/* Finalize the digest (simplified example) */
-    if (outsize < 48) return 0;  /* bash384 produces 48 bytes */
-    bash384StepG(out, vctx);
-    *outlen = 48;
-    return 1;
-}
-
-void provBash384_free(void *vctx) {
-    OPENSSL_free(vctx);
-}
-
-void *provBash384_newctx(void *provctx) {
-    return OPENSSL_zalloc(bash384_keep());
-}
-
-int provBash384_get_params(OSSL_PARAM params[]) {
-    OSSL_PARAM *p;
-
-    /* Set the digest size to 48 bytes (BASH-384) */
-    if ((p = OSSL_PARAM_locate(params, "digest-size")) != NULL)
-        return OSSL_PARAM_set_size_t(p, 48);
-    return 1;
-}
-
-
 
 /// BASH 512
 
-
-/* Digest functions */
-int provBash512_init(void *vctx) {
-    if (vctx == NULL) return 0;
-	bash512Start(vctx);
-    return 1;
+static void* provBash512_newctx(void *provctx) 
+{
+    return provBash_newctx(64);
 }
 
-int provBash512_update(void *vctx, const unsigned char *data, size_t datalen) {
-    if (vctx == NULL) return 0;
-
-	bash512StepH(data, datalen, vctx);
-    return 1;
+static int provBash512_get_params(OSSL_PARAM params[]) 
+{
+    return md_get_params(params, 64, 64, EVP_MD_FLAG_DIGALGID_NULL);
 }
 
-int provBash512_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
-    if (vctx == NULL) return 0;
+/* Digest method structure */
+const OSSL_DISPATCH provBash256_functions[] = 
+{
+    { OSSL_FUNC_DIGEST_NEWCTX, (void (*)(void))provBash256_newctx },
+    { OSSL_FUNC_DIGEST_INIT, (void (*)(void))provBash_init },
+    { OSSL_FUNC_DIGEST_UPDATE, (void (*)(void))provBash_update },
+    { OSSL_FUNC_DIGEST_FINAL, (void (*)(void))provBash_final },
+    { OSSL_FUNC_DIGEST_FREECTX, (void (*)(void))provBash_free },
+    { OSSL_FUNC_DIGEST_GETTABLE_PARAMS, (void (*)(void))md_gettable_params },
+    { OSSL_FUNC_DIGEST_GET_PARAMS, (void (*)(void))provBash256_get_params },
+    { 0, NULL }
+};
 
-	/* Finalize the digest (simplified example) */
-    if (outsize < 64) return 0;  /* bash512 produces 64 bytes */
-    bash512StepG(out, vctx);
-    *outlen = 64;
-    return 1;
-}
+/* Digest method structure */
+const OSSL_DISPATCH provBash384_functions[] = 
+{
+    { OSSL_FUNC_DIGEST_NEWCTX, (void (*)(void))provBash384_newctx },
+    { OSSL_FUNC_DIGEST_INIT, (void (*)(void))provBash_init },
+    { OSSL_FUNC_DIGEST_UPDATE, (void (*)(void))provBash_update },
+    { OSSL_FUNC_DIGEST_FINAL, (void (*)(void))provBash_final },
+    { OSSL_FUNC_DIGEST_FREECTX, (void (*)(void))provBash_free },
+    { OSSL_FUNC_DIGEST_GETTABLE_PARAMS, (void (*)(void))md_gettable_params },
+    { OSSL_FUNC_DIGEST_GET_PARAMS, (void (*)(void))provBash384_get_params },
+    { 0, NULL }
+};
 
-void provBash512_free(void *vctx) {
-    OPENSSL_free(vctx);
-}
-
-void *provBash512_newctx(void *provctx) {
-    return OPENSSL_zalloc(bash512_keep());
-}
-
-int provBash512_get_params(OSSL_PARAM params[]) {
-    OSSL_PARAM *p;
-
-    /* Set the digest size to 64 bytes (SHA-512) */
-    if ((p = OSSL_PARAM_locate(params, "digest-size")) != NULL)
-        return OSSL_PARAM_set_size_t(p, 64);
-    return 1;
-}
+/* Digest method structure */
+const OSSL_DISPATCH provBash512_functions[] = 
+{
+    { OSSL_FUNC_DIGEST_NEWCTX, (void (*)(void))provBash512_newctx },
+    { OSSL_FUNC_DIGEST_INIT, (void (*)(void))provBash_init },
+    { OSSL_FUNC_DIGEST_UPDATE, (void (*)(void))provBash_update },
+    { OSSL_FUNC_DIGEST_FINAL, (void (*)(void))provBash_final },
+    { OSSL_FUNC_DIGEST_FREECTX, (void (*)(void))provBash_free },
+    { OSSL_FUNC_DIGEST_GETTABLE_PARAMS, (void (*)(void))md_gettable_params },
+    { OSSL_FUNC_DIGEST_GET_PARAMS, (void (*)(void))provBash512_get_params },
+    { 0, NULL }
+};
 
 #endif // OPENSSL_VERSION_MAJOR >= 3
 

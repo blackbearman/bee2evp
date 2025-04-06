@@ -8,41 +8,21 @@ extern "C" {
 #include <openssl/opensslv.h>
 
 #if OPENSSL_VERSION_MAJOR >= 3
-#include <openssl/core.h>
-#include <openssl/core_dispatch.h>
-#include <openssl/provider.h>
-#include <openssl/err.h>
 #include <openssl/types.h>
 
+// Common functions for all digests
 const OSSL_PARAM *md_gettable_params(void *provctx);
+int md_get_params(
+	OSSL_PARAM params[], 
+	unsigned int blocksize, 
+	unsigned int size, 
+	unsigned int flags
+);
 
-int provBeltHash_init(void *vctx);
-int provBeltHash_update(void *vctx, const unsigned char *data, size_t datalen);
-int provBeltHash_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize);
-void provBeltHash_free(void *vctx);
-void *provBeltHash_newctx(void *provctx);
-int provBeltHash_get_params(OSSL_PARAM params[]);
-
-int provBash256_init(void *vctx);
-int provBash256_update(void *vctx, const unsigned char *data, size_t datalen);
-int provBash256_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize);
-void provBash256_free(void *vctx);
-void *provBash256_newctx(void *provctx);
-int provBash256_get_params(OSSL_PARAM params[]);
-
-int provBash384_init(void *vctx);
-int provBash384_update(void *vctx, const unsigned char *data, size_t datalen);
-int provBash384_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize);
-void provBash384_free(void *vctx);
-void *provBash384_newctx(void *provctx);
-int provBash384_get_params(OSSL_PARAM params[]);
-
-int provBash512_init(void *vctx);
-int provBash512_update(void *vctx, const unsigned char *data, size_t datalen);
-int provBash512_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize);
-void provBash512_free(void *vctx);
-void *provBash512_newctx(void *provctx);
-int provBash512_get_params(OSSL_PARAM params[]);
+extern const OSSL_DISPATCH provBeltHash_functions[];
+extern const OSSL_DISPATCH provBash256_functions[];
+extern const OSSL_DISPATCH provBash384_functions[];
+extern const OSSL_DISPATCH provBash512_functions[];
 
 void provBeltECB_freectx(void *vctx);
 void *provBeltECB_newctx(void *provctx);

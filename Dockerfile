@@ -25,7 +25,7 @@ RUN make install
 RUN openssl version
 RUN openssl version -d
 
-RUN sed -i -e '/^.openssl_init.$/a engines = engine_section' /usr/lib/ssl/openssl.cnf
+#RUN sed -i -e '/^.openssl_init.$/a engines = engine_section' /usr/lib/ssl/openssl.cnf
 
 RUN sed -i -e '/^.default_sect.$/a activate = 1' /usr/lib/ssl/openssl.cnf
 
@@ -89,21 +89,21 @@ RUN cat /usr/lib/ssl/openssl.cnf
 
 RUN openssl list -providers
 
-RUN openssl engine -t bee2evp
+#RUN openssl engine -t bee2evp
 
-RUN echo -n "hello world" | openssl dgst -engine bee2evp -belt-hash
+#RUN echo -n "hello world" | openssl dgst -engine bee2evp -belt-hash
 
 RUN echo -n "hello world" | openssl dgst -provider bee2pro -belt-hash
 
-RUN echo -n "hello world" | openssl dgst -engine bee2evp -bash256
+#RUN echo -n "hello world" | openssl dgst -engine bee2evp -bash256
 
 RUN echo -n "hello world" | openssl dgst -provider bee2pro -bash256
 
-RUN echo -n "hello world" | openssl dgst -engine bee2evp -bash384
+#RUN echo -n "hello world" | openssl dgst -engine bee2evp -bash384
 
 RUN echo -n "hello world" | openssl dgst -provider bee2pro -bash384
 
-RUN echo -n "hello world" | openssl dgst -engine bee2evp -bash512
+#RUN echo -n "hello world" | openssl dgst -engine bee2evp -bash512
 
 RUN echo -n "hello world" | openssl dgst -provider bee2pro -bash512
 
@@ -113,6 +113,6 @@ RUN openssl enc -belt-ecb128 -provider bee2pro -in ../.gitmodules -out text.bin 
 
 RUN od -t x1 -An text.bin
 
-RUN openssl enc -belt-ecb128 -engine bee2evp -in ../.gitmodules -out text2.bin -K 00112233445566778899AABBCCDDEEFF
+#RUN openssl enc -belt-ecb128 -engine bee2evp -in ../.gitmodules -out text2.bin -K 00112233445566778899AABBCCDDEEFF
 
-RUN od -t x1 -An text2.bin
+#RUN od -t x1 -An text2.bin
