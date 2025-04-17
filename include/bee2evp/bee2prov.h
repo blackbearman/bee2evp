@@ -24,19 +24,8 @@ extern const OSSL_DISPATCH provBash256_functions[];
 extern const OSSL_DISPATCH provBash384_functions[];
 extern const OSSL_DISPATCH provBash512_functions[];
 
-void provBeltECB_freectx(void *vctx);
-void *provBeltECB_newctx(void *provctx);
-int provBeltECB_encrypt_init(void *vctx, const unsigned char *key, size_t keylen,
-    const unsigned char *iv, size_t ivlen, const OSSL_PARAM params[]);
-int provBeltECB_decrypt_init(void *vctx, const unsigned char *key, size_t keylen,
-    const unsigned char *iv, size_t ivlen, const OSSL_PARAM params[]);
-int provBeltECB_update(void *vctx, unsigned char *out, size_t *outlen,
-    size_t outsize, const unsigned char *in, size_t inlen);
-int provBeltECB_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize);
-int provBeltECB_set_ctx_params(void *vctx, const OSSL_PARAM params[]);
-const OSSL_PARAM *provBeltECB_gettable_ctx_params(void *provctx);
-int provBeltECB_get_ctx_params(void *vctx, OSSL_PARAM *params);
-int provBeltECB_get_params(OSSL_PARAM params[]);
+
+extern const OSSL_DISPATCH provBeltECB_functions[];
 
 void provBign_freectx(void *vctx);
 void *provBign_newctx(void *provctx, const char *propquery);

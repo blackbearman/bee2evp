@@ -20,75 +20,289 @@
 #include "bee2evp/bee2evp.h"
 #include "bee2evp_lcl.h"
 
-#include "bee2evp/bee2prov.h"
-
 #include <openssl/opensslv.h>
 
 #if OPENSSL_VERSION_MAJOR >= 3
 
-#include <openssl/core.h>
-#include <openssl/core_dispatch.h>
-#include <openssl/provider.h>
 #include <openssl/err.h>
 #include <openssl/params.h>
+#include <openssl/proverr.h>
 #include <openssl/types.h>
-#include <string.h>
-#include <stdlib.h>
+#include "bee2evp/bee2prov.h"
 
 /* Cipher-specific context */
 typedef struct {
 	void* state; 			// inner state
+	uint64_t flags;			// flags
     size_t keylen;         /* Key length */
+	size_t blksize;		   /* Block size */
     size_t ivlen;          /* IV length */
     int encrypt;           /* 1 = encryption, 0 = decryption */
 } belt_ctx;
 
-/* Cipher context cleanup */
-void provBeltECB_freectx(void *vctx) {
-    belt_ctx *ctx = (belt_ctx *)vctx;
-    if (ctx) {
-		blobClose(ctx->state);
-        OPENSSL_free(ctx);
+
+/* Internal flags that can be queried */
+# define PROV_CIPHER_FLAG_AEAD             0x0001
+# define PROV_CIPHER_FLAG_CUSTOM_IV        0x0002
+# define PROV_CIPHER_FLAG_CTS              0x0004
+# define PROV_CIPHER_FLAG_TLS1_MULTIBLOCK  0x0008
+# define PROV_CIPHER_FLAG_RAND_KEY         0x0010
+/* Internal flags that are only used within the provider */
+# define PROV_CIPHER_FLAG_VARIABLE_LENGTH  0x0100
+# define PROV_CIPHER_FLAG_INVERSE_CIPHER   0x0200
+/*-
+ * Generic cipher functions for OSSL_PARAM gettables and settables
+ */
+static const OSSL_PARAM cipher_params[] = {
+    OSSL_PARAM_uint("mode", NULL),
+    OSSL_PARAM_size_t("keylen", NULL),
+    OSSL_PARAM_size_t("ivlen", NULL),
+    OSSL_PARAM_size_t("blocksize", NULL),
+    OSSL_PARAM_int("aead", NULL),
+    OSSL_PARAM_int("custom-iv", NULL),
+    OSSL_PARAM_int("cts", NULL),
+    OSSL_PARAM_int("tls-multi", NULL),
+    OSSL_PARAM_int("has-randkey", NULL),
+    OSSL_PARAM_END
+};
+
+const OSSL_PARAM* cipher_gettable_params(void *provctx)
+{
+	printf("05-ecb-gettable_params start \n");
+    return cipher_params;
+}
+
+int cipher_get_params(
+	OSSL_PARAM params[], unsigned int mode, uint64_t flags, 
+	size_t keylen, size_t blksize, size_t ivlen)
+{
+    OSSL_PARAM *p;
+	printf("09-ecb-get-params start \n");
+
+    p = OSSL_PARAM_locate(params, "mode");
+	printf("09-get-params mode %d %p\n", mode, p);
+    if (p != NULL && !OSSL_PARAM_set_uint(p, mode)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
     }
+    p = OSSL_PARAM_locate(params, "aead");
+	printf("09-get-params aead %ld %p\n", flags & PROV_CIPHER_FLAG_AEAD, p);
+    if (p != NULL
+        && !OSSL_PARAM_set_int(p, (flags & PROV_CIPHER_FLAG_AEAD) != 0)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
+    }
+    p = OSSL_PARAM_locate(params, "custom-iv");
+	printf("09-get-params custom-iv %ld %p\n", flags & PROV_CIPHER_FLAG_CUSTOM_IV, p);
+    if (p != NULL
+        && !OSSL_PARAM_set_int(p, (flags & PROV_CIPHER_FLAG_CUSTOM_IV) != 0)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
+    }
+    p = OSSL_PARAM_locate(params, "cts");
+	printf("09-get-params cts %ld %p\n", flags & PROV_CIPHER_FLAG_CTS, p);
+    if (p != NULL
+        && !OSSL_PARAM_set_int(p, (flags & PROV_CIPHER_FLAG_CTS) != 0)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
+    }
+    p = OSSL_PARAM_locate(params, "tls-multi");
+	printf("09-get-params tls-multi %ld %p\n", flags & PROV_CIPHER_FLAG_TLS1_MULTIBLOCK, p);
+    if (p != NULL
+        && !OSSL_PARAM_set_int(p, (flags & PROV_CIPHER_FLAG_TLS1_MULTIBLOCK) != 0)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
+    }
+    p = OSSL_PARAM_locate(params, "has-randkey");
+	printf("09-get-params has-randkey %ld %p\n", flags & PROV_CIPHER_FLAG_RAND_KEY, p);
+    if (p != NULL
+        && !OSSL_PARAM_set_int(p, (flags & PROV_CIPHER_FLAG_RAND_KEY) != 0)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
+    }
+    p = OSSL_PARAM_locate(params, "keylen");
+	printf("09-get-params keylen %ld %p\n", keylen, p);
+    if (p != NULL && !OSSL_PARAM_set_size_t(p, keylen)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
+    }
+    p = OSSL_PARAM_locate(params, "blocksize");
+	printf("09-get-params blksize %ld %p\n", blksize, p);
+    if (p != NULL && !OSSL_PARAM_set_size_t(p, blksize)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
+    }
+    p = OSSL_PARAM_locate(params, "ivlen");
+	printf("09-get-params ivlen %ld %p\n", ivlen, p);
+    if (p != NULL && !OSSL_PARAM_set_size_t(p, ivlen)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
+    }
+    return 1;
+}
+
+
+int cipher_get_ctx_params(void *vctx, OSSL_PARAM params[])
+{
+	printf("07-ecb-ctx-get-params start \n");
+    belt_ctx *ctx = (belt_ctx *)vctx;
+    OSSL_PARAM *p;
+
+	int i = 0;
+	while (params[i].key != NULL) {
+		printf("07-ecb-ctx-get-params param %s \n", params[i].key);
+		i++;
+	}
+
+    p = OSSL_PARAM_locate(params, "ivlen");
+    if (p != NULL && !OSSL_PARAM_set_size_t(p, ctx->ivlen)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
+    }
+    // p = OSSL_PARAM_locate(params, "iv");
+    // if (p != NULL
+    //     && !OSSL_PARAM_set_octet_ptr(p, &ctx->oiv, ctx->ivlen)
+    //     && !OSSL_PARAM_set_octet_string(p, &ctx->oiv, ctx->ivlen)) {
+    //     ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+    //     return 0;
+    // }
+    // p = OSSL_PARAM_locate(params, "updated-iv");
+    // if (p != NULL
+    //     && !OSSL_PARAM_set_octet_ptr(p, &ctx->iv, ctx->ivlen)
+    //     && !OSSL_PARAM_set_octet_string(p, &ctx->iv, ctx->ivlen)) {
+    //     ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+    //     return 0;
+    // }
+    // p = OSSL_PARAM_locate(params, "num");
+    // if (p != NULL && !OSSL_PARAM_set_uint(p, ctx->num)) {
+    //     ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+    //     return 0;
+    // }
+    p = OSSL_PARAM_locate(params, "keylen");
+    if (p != NULL && !OSSL_PARAM_set_size_t(p, ctx->keylen)) {
+        ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+        return 0;
+    }
+    // p = OSSL_PARAM_locate(params, "tls-mac");
+    // if (p != NULL
+    //     && !OSSL_PARAM_set_octet_ptr(p, ctx->tlsmac, ctx->tlsmacsize)) {
+    //     ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_SET_PARAMETER);
+    //     return 0;
+    // }
+    return 1;
+}
+
+int cipher_set_ctx_params(void *vctx, const OSSL_PARAM params[])
+{
+	printf("08-ecb-ctx-set-params start \n");
+	int i = 0;
+	while (params[i].key != NULL) {
+		printf("08-ecb-ctx-set-params %s \n", params[i].key);
+		i++;
+	}
+//    belt_ctx *ctx = (belt_ctx *)vctx;
+//    const OSSL_PARAM *p;
+
+//    if (ossl_param_is_empty(params))
+//        return 1;
+
+    // p = OSSL_PARAM_locate_const(params, "tls-version");
+    // if (p != NULL) {
+    //     if (!OSSL_PARAM_get_uint(p, &ctx->tlsversion)) {
+    //         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
+    //         return 0;
+    //     }
+    // }
+    // p = OSSL_PARAM_locate_const(params, "tls-mac-size");
+    // if (p != NULL) {
+    //     if (!OSSL_PARAM_get_size_t(p, &ctx->tlsmacsize)) {
+    //         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
+    //         return 0;
+    //     }
+    // }
+    // p = OSSL_PARAM_locate_const(params, "num");
+    // if (p != NULL) {
+    //     unsigned int num;
+
+    //     if (!OSSL_PARAM_get_uint(p, &num)) {
+    //         ERR_raise(ERR_LIB_PROV, PROV_R_FAILED_TO_GET_PARAMETER);
+    //         return 0;
+    //     }
+    //     ctx->num = num;
+    // }
+    return 1;
+}
+
+static const OSSL_PARAM cipher_ctx_params[] = {                 
+    OSSL_PARAM_size_t("keylen", NULL),                         
+    OSSL_PARAM_size_t("ivlen", NULL),                         
+    OSSL_PARAM_uint("num", NULL),                              
+    OSSL_PARAM_octet_string("iv", NULL, 0),                    
+    OSSL_PARAM_octet_string("updated-iv", NULL, 0),
+    OSSL_PARAM_END                                                             
+};                                                                             
+const OSSL_PARAM * cipher_gettable_ctx_params(ossl_unused void *cctx,          
+                                              ossl_unused void *provctx)      
+{   
+	printf("06-ecb-gettable_ctx_params start \n");                                                                          
+    return cipher_ctx_params;                                  
+}
+
+
+#define BELT_ECB_FLAGS 0
+/* Cipher context cleanup */
+static void provBeltECB_freectx(void *vctx) {
+	blob_t blob = (blob_t) vctx;
+    blobClose(blob);
 }
 
 /* Create a new cipher context */
-void *provBeltECB_newctx(void *provctx) {
-	belt_ctx *ctx = (belt_ctx*) OPENSSL_zalloc(sizeof(belt_ctx));
-    if (ctx == NULL) {
-        return NULL;
-    }
-	ctx->state = blobCreate(beltECB_keep());
-	if (ctx->state == NULL) {
-		OPENSSL_free(ctx);
-        return NULL;
-    }
+static void *provBeltECB_newctx(void *provctx) {
+	blob_t blob = blobCreate(sizeof(belt_ctx)+beltECB_keep());
+	belt_ctx* ctx = (belt_ctx*) blob;	ctx->state = (void*) blob + sizeof(belt_ctx);
+	ctx->keylen = 16;
     return ctx;
 }
 
 /* Initialize the cipher context for encryption */
-int provBeltECB_encrypt_init(
-	void *vctx, const unsigned char *key, size_t keylen, const unsigned char *iv,
-                                  size_t ivlen, const OSSL_PARAM params[]) {
+static int provBeltECB_encrypt_init(
+	void *vctx, const unsigned char *key, size_t keylen, 
+	const unsigned char *iv, size_t ivlen, const OSSL_PARAM params[]
+) {
 	belt_ctx *ctx = (belt_ctx *)vctx;
+	printf("10-ecb-init keylen=%ld\n", keylen);
+	printf("10-ecb-init key=%p\n", key);
+	//ctx->keylen = keylen;
+	//ctx->ivlen = ivlen;
 	if (key)
-		beltECBStart(ctx->state, key, keylen);
+		beltECBStart(ctx->state, key, ctx->keylen);
 	ctx->encrypt = 1;
+	if (params) {
+		int i = 0;
+		while (params[i].key != NULL) {
+			printf("10-ecb-init %s \n", params[i].key);
+			i++;
+		}
+	}
     return 1;
 }
 
 /* Initialize the cipher context for decryption */
-int provBeltECB_decrypt_init(void *vctx, const unsigned char *key, size_t keylen,
+static int provBeltECB_decrypt_init(void *vctx, const unsigned char *key, size_t keylen,
 	const unsigned char *iv, size_t ivlen, const OSSL_PARAM params[]) {
 	belt_ctx *ctx = (belt_ctx *)vctx;
+	printf("10-ecb-init decrypt keylen=%ld\n", keylen);
+	printf("10-ecb-init decrypt key=%p\n", key);
 	if (key)
 		beltECBStart(ctx->state, key, keylen);
 	ctx->encrypt = 0;
+	//ctx->keylen = keylen;
+	//ctx->ivlen = ivlen;
 	return 1;
 }
 
 /* Update (perform encryption or decryption on the input data) */
-int provBeltECB_update(void *vctx, unsigned char *out, size_t *outlen,
+static int provBeltECB_update(void *vctx, unsigned char *out, size_t *outlen,
                             size_t outsize, const unsigned char *in, size_t inlen) {
     belt_ctx *ctx = (belt_ctx *)vctx;
 	memMove(out, in, inlen);
@@ -96,50 +310,60 @@ int provBeltECB_update(void *vctx, unsigned char *out, size_t *outlen,
 		beltECBStepE(out, inlen, ctx->state);
 	else
 		beltECBStepD(out, inlen, ctx->state);
+	printf("11-ecb-update inlen=%ld %02x\n", inlen, out[0]);
 
     *outlen = inlen;
     return 1;
 }
 
 /* Finalize the cipher operation */
-int provBeltECB_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
+static int provBeltECB_final(void *vctx, unsigned char *out, size_t *outlen, size_t outsize) {
     *outlen = 0; /* No additional output for block-based ciphers like ECB */
+	printf("12-ecb-final outsize=%ld %02x\n", outsize, out[0]);
     return 1;
 }
 
-int provBeltECB_get_params(OSSL_PARAM params[]) {
-	return 1;
+static int provBeltECB_get_params(OSSL_PARAM params[]) {
+	printf("12-provBeltECB_get_params start \n");
+	return cipher_get_params(params, 0x1, BELT_ECB_FLAGS, 16, 16, 0);
 }
 
-/* Set parameters for the cipher context */
-int provBeltECB_set_ctx_params(void *vctx, const OSSL_PARAM params[]) {
-    return 1;
-}
+// /* Set parameters for the cipher context */
+// static int provBeltECB_set_ctx_params(void *vctx, const OSSL_PARAM params[]) {
+//     return 1;
+// }
 
-/* Get parameters for the cipher context */
-const OSSL_PARAM *provBeltECB_gettable_ctx_params(void *provctx) {
-    static const OSSL_PARAM params[] = {
-        OSSL_PARAM_size_t("keylen", NULL),
-        OSSL_PARAM_size_t("ivlen", NULL),
-        OSSL_PARAM_END
-    };
-    return params;
-}
+// static int provBeltECB_get_ctx_params(void *vctx, OSSL_PARAM *params) {
+//     OSSL_PARAM *p;
+//     belt_ctx *ctx = (belt_ctx *)vctx;
+//     if ((p = OSSL_PARAM_locate(params, "keylen")) != NULL) {
+//         if (!OSSL_PARAM_set_size_t(p, ctx->keylen))
+//             return 0;
+//     }
 
-int provBeltECB_get_ctx_params(void *vctx, OSSL_PARAM *params) {
-    OSSL_PARAM *p;
-    belt_ctx *ctx = (belt_ctx *)vctx;
-    if ((p = OSSL_PARAM_locate(params, "keylen")) != NULL) {
-        if (!OSSL_PARAM_set_size_t(p, ctx->keylen))
-            return 0;
-    }
+//     if ((p = OSSL_PARAM_locate(params, "ivlen")) != NULL) {
+//         if (!OSSL_PARAM_set_size_t(p, ctx->ivlen))
+//             return 0;
+//     }
+//     return 1;
+// }
 
-    if ((p = OSSL_PARAM_locate(params, "ivlen")) != NULL) {
-        if (!OSSL_PARAM_set_size_t(p, ctx->ivlen))
-            return 0;
-    }
-    return 1;
-}
+
+/* Cipher operation dispatch table */
+const OSSL_DISPATCH provBeltECB_functions[] = {
+    { OSSL_FUNC_CIPHER_NEWCTX, (void (*)(void))provBeltECB_newctx },
+    { OSSL_FUNC_CIPHER_FREECTX, (void (*)(void))provBeltECB_freectx },
+    { OSSL_FUNC_CIPHER_ENCRYPT_INIT, (void (*)(void))provBeltECB_encrypt_init },
+    { OSSL_FUNC_CIPHER_DECRYPT_INIT, (void (*)(void))provBeltECB_decrypt_init },
+    { OSSL_FUNC_CIPHER_UPDATE, (void (*)(void))provBeltECB_update },
+    { OSSL_FUNC_CIPHER_FINAL, (void (*)(void))provBeltECB_final },
+    { OSSL_FUNC_CIPHER_SET_CTX_PARAMS, (void (*)(void))cipher_set_ctx_params },
+    { OSSL_FUNC_CIPHER_GETTABLE_CTX_PARAMS, (void (*)(void))cipher_gettable_ctx_params },
+    { OSSL_FUNC_CIPHER_GET_CTX_PARAMS, (void (*)(void))cipher_get_ctx_params },
+    { OSSL_FUNC_CIPHER_GET_PARAMS, (void (*)(void))provBeltECB_get_params}, 
+    { OSSL_FUNC_CIPHER_GETTABLE_PARAMS, (void (*)(void))cipher_gettable_params},
+    { 0, NULL }
+};
 
 
 /* Cipher context cleanup */

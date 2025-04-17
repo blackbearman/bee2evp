@@ -107,11 +107,15 @@ RUN echo -n "hello world" | openssl dgst -provider bee2pro -bash384
 
 RUN echo -n "hello world" | openssl dgst -provider bee2pro -bash512
 
-RUN ls .. -a
+#RUN ls .. -a
 
 RUN openssl enc -belt-ecb128 -provider bee2pro -in ../.gitmodules -out text.bin -K 00112233445566778899AABBCCDDEEFF
 
 RUN od -t x1 -An text.bin
+
+RUN openssl enc -d -belt-ecb128 -provider bee2pro -in text.bin -out text.txt -K 00112233445566778899AABBCCDDEEFF
+
+RUN cat text.txt
 
 #RUN openssl enc -belt-ecb128 -engine bee2evp -in ../.gitmodules -out text2.bin -K 00112233445566778899AABBCCDDEEFF
 

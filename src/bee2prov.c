@@ -90,26 +90,10 @@ static const OSSL_ALGORITHM bee2_provider_digests[] =
     { NULL, NULL, NULL, NULL }
 };
 
-
-/* Cipher operation dispatch table */
-static const OSSL_DISPATCH provBeltECB_functions[] = {
-    { OSSL_FUNC_CIPHER_NEWCTX, (void (*)(void))provBeltECB_newctx },
-    { OSSL_FUNC_CIPHER_FREECTX, (void (*)(void))provBeltECB_freectx },
-    { OSSL_FUNC_CIPHER_ENCRYPT_INIT, (void (*)(void))provBeltECB_encrypt_init },
-    { OSSL_FUNC_CIPHER_DECRYPT_INIT, (void (*)(void))provBeltECB_decrypt_init },
-    { OSSL_FUNC_CIPHER_UPDATE, (void (*)(void))provBeltECB_update },
-    { OSSL_FUNC_CIPHER_FINAL, (void (*)(void))provBeltECB_final },
-    { OSSL_FUNC_CIPHER_SET_CTX_PARAMS, (void (*)(void))provBeltECB_set_ctx_params },
-    { OSSL_FUNC_CIPHER_GETTABLE_CTX_PARAMS, (void (*)(void))provBeltECB_gettable_ctx_params },
-    { OSSL_FUNC_CIPHER_GET_CTX_PARAMS, (void (*)(void))provBeltECB_get_ctx_params },
-    { OSSL_FUNC_CIPHER_GET_PARAMS, (void (*)(void))provBeltECB_get_params}, 
-    { 0, NULL }
-};
-
 /* Supported cipher algorithms */
 static const OSSL_ALGORITHM bee2_provider_ciphers[] = {
-    { "belt-ecb128:1.2.112.0.2.0.34.101.31.11", "provider=bee2pro", provBeltECB_functions,
-    "Belt encryption algorithm ECB (128)" },
+    { "belt-ecb128:1.2.112.0.2.0.34.101.31.11", "provider=bee2pro", 
+        provBeltECB_functions, "Belt encryption algorithm ECB (128)" },
     { NULL, NULL, NULL, NULL }
 };
 
@@ -140,9 +124,9 @@ static const OSSL_ALGORITHM *bee2_provider_query_operation(
     /* Example: Provide algorithms for OSSL_OP_DIGEST (hashing), OSSL_OP_CIPHER, etc. */
     *no_cache = 0; /* Set to 1 if you don't want OpenSSL to cache the result */
     switch (operation_id) {
-        // case OSSL_OP_SIGNATURE:
-        //     printf("11-provider signatures\n");
-        //     return bee2_provider_signatures;
+        case OSSL_OP_SIGNATURE:
+             printf("11-provider signatures\n");
+             return bee2_provider_signatures;
         case OSSL_OP_DIGEST:
             /* Return supported digest algorithms */
             return bee2_provider_digests; 
