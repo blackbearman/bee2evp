@@ -85,25 +85,15 @@ bpki-ct-revoke-req = \$\{bpki\}.5.6 \n\
 bpki-ct-resp = \$\{bpki\}.5.7 \n\
 ' /usr/lib/ssl/openssl.cnf
 
-RUN cat /usr/lib/ssl/openssl.cnf
+#RUN cat /usr/lib/ssl/openssl.cnf
 
 RUN openssl list -providers
 
-#RUN openssl engine -t bee2evp
-
-#RUN echo -n "hello world" | openssl dgst -engine bee2evp -belt-hash
-
 RUN echo -n "hello world" | openssl dgst -provider bee2pro -belt-hash
-
-#RUN echo -n "hello world" | openssl dgst -engine bee2evp -bash256
 
 RUN echo -n "hello world" | openssl dgst -provider bee2pro -bash256
 
-#RUN echo -n "hello world" | openssl dgst -engine bee2evp -bash384
-
 RUN echo -n "hello world" | openssl dgst -provider bee2pro -bash384
-
-#RUN echo -n "hello world" | openssl dgst -engine bee2evp -bash512
 
 RUN echo -n "hello world" | openssl dgst -provider bee2pro -bash512
 
@@ -117,6 +107,17 @@ RUN openssl enc -d -belt-ecb128 -provider bee2pro -in text.bin -out text.txt -K 
 
 RUN cat text.txt
 
-#RUN openssl enc -belt-ecb128 -engine bee2evp -in ../.gitmodules -out text2.bin -K 00112233445566778899AABBCCDDEEFF
+RUN echo -n "hello world" | openssl enc -belt-ecb128 -provider bee2pro -out short.bin -K 00112233445566778899AABBCCDDEEFF
 
-#RUN od -t x1 -An text2.bin
+RUN openssl enc -d -belt-ecb128 -provider bee2pro -in short.bin -out short.txt -K 00112233445566778899AABBCCDDEEFF
+
+RUN od -t x1 -An short.txt
+
+RUN cat short.txt
+
+RUN openssl kdf -keylen 32 -kdfopt digest:belt-hash -kdfopt pass:password \
+    -kdfopt salt:00112233445566778899AABBCCDDEEFF -kdfopt iter:10000 PBKDF2
+
+
+RUN openssl kdf -keylen 32 -kdfopt iter:2 -kdfopt pass:password\
+    -kdfopt salt:00112233445566778899AABBCCDDEEFF -provider bee2pro belt-pbkdf

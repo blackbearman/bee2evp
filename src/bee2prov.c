@@ -97,6 +97,15 @@ static const OSSL_ALGORITHM bee2_provider_ciphers[] = {
     { NULL, NULL, NULL, NULL }
 };
 
+
+/* Supported PBKDF algorithms */
+static const OSSL_ALGORITHM bee2evp_provider_kdfs[] = {
+    { "belt-pbkdf:1.2.112.0.2.0.34.101.31.111", "provider=bee2pro", 
+        provBeltPBKDF_functions, "Belt-pbkdf password-based kdf" },
+    { NULL, NULL, NULL }
+};
+
+
 /* Signature method dispatch table */
 static const OSSL_DISPATCH bign_signature_functions[] = {
     { OSSL_FUNC_SIGNATURE_NEWCTX, (void (*)(void))provBign_newctx },
@@ -133,6 +142,8 @@ static const OSSL_ALGORITHM *bee2_provider_query_operation(
         case OSSL_OP_CIPHER:
             /* Return supported cipher algorithms */
             return bee2_provider_ciphers; 
+        case OSSL_OP_KDF:
+            return bee2evp_provider_kdfs; /* Provide KDF algorithms */
         default:
             return NULL; /* Operation not supported */
     }

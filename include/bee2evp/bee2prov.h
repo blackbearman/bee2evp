@@ -27,6 +27,8 @@ extern const OSSL_DISPATCH provBash512_functions[];
 
 extern const OSSL_DISPATCH provBeltECB_functions[];
 
+extern const OSSL_DISPATCH provBeltPBKDF_functions[];
+
 void provBign_freectx(void *vctx);
 void *provBign_newctx(void *provctx, const char *propquery);
 int provBign_sign_init(void *vctx, void *provkey, const OSSL_PARAM params[]);
