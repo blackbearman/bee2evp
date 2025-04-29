@@ -59,8 +59,27 @@ int md_get_params(
     return 1;
 }
 
+/*
+ * Forward declaration of any unique methods implemented here. This is not strictly
+ * necessary for the compiler, but provides an assurance that the signatures
+ * of the functions in the dispatch table are correct.
+ */
+static OSSL_FUNC_digest_newctx_fn provBeltHash_newctx;
+static OSSL_FUNC_digest_init_fn provBeltHash_init;
+static OSSL_FUNC_digest_update_fn provBeltHash_update;
+static OSSL_FUNC_digest_final_fn provBeltHash_final;
+static OSSL_FUNC_digest_freectx_fn provBeltHash_free;
+static OSSL_FUNC_digest_dupctx_fn provBeltHash_dupctx;
+//static OSSL_FUNC_digest_copyctx_fn provBeltHash_copyctx;
+//static OSSL_FUNC_digest_squeeze_fn shake_squeeze;
+static OSSL_FUNC_digest_get_params_fn provBeltHash_get_params;
+//static OSSL_FUNC_digest_get_ctx_params_fn shake_get_ctx_params;
+//static OSSL_FUNC_digest_gettable_ctx_params_fn shake_gettable_ctx_params;
+//static OSSL_FUNC_digest_set_ctx_params_fn shake_set_ctx_params;
+//static OSSL_FUNC_digest_settable_ctx_params_fn shake_settable_ctx_params;
+
 // Belt-hash
-static int provBeltHash_init(void *vctx) 
+static int provBeltHash_init(void *vctx, const OSSL_PARAM params[]) 
 {
     if (vctx == NULL) 
 		return 0;
@@ -101,6 +120,17 @@ static void *provBeltHash_newctx(void *provctx)
     return (void*)blob;
 }
 
+static void *provBeltHash_dupctx(void *vctx) 
+{
+	blob_t blob = blobCopy(0, vctx);
+    return (void*)blob;
+}
+
+// static void provBeltHash_copyctx(void *voutctx, void *vinctx) 
+// { 
+// 	blobCopy(voutctx, vinctx); 
+// } 
+
 static int provBeltHash_get_params(OSSL_PARAM params[]) 
 {
 	return md_get_params(params, 32, 32, EVP_MD_FLAG_DIGALGID_NULL);
@@ -114,6 +144,8 @@ const OSSL_DISPATCH provBeltHash_functions[] =
     { OSSL_FUNC_DIGEST_UPDATE, (void (*)(void))provBeltHash_update },
     { OSSL_FUNC_DIGEST_FINAL, (void (*)(void))provBeltHash_final },
     { OSSL_FUNC_DIGEST_FREECTX, (void (*)(void))provBeltHash_free },
+    { OSSL_FUNC_DIGEST_DUPCTX, (void (*)(void))provBeltHash_dupctx },
+//    { OSSL_FUNC_DIGEST_COPYCTX, (void (*)(void))provBeltHash_copyctx },
     { OSSL_FUNC_DIGEST_GETTABLE_PARAMS, (void (*)(void))md_gettable_params },
     { OSSL_FUNC_DIGEST_GET_PARAMS, (void (*)(void))provBeltHash_get_params },
     { 0, NULL }
