@@ -547,3 +547,209 @@ int evpBign_asn1_i2o_pubkey(octet** out, const bign_key* key)
 	memCopy(*out, key->pubkey, ret);
 	return ret;
 }
+
+#include <openssl/opensslv.h>
+
+#if OPENSSL_VERSION_MAJOR >= 3
+
+/*
+The encoder doesn't need to know more about the B<OSSL_CORE_BIO>
+pointer than being able to pass it to the appropriate BIO upcalls (see
+L<provider-base(7)/Core functions>: <openssl/core_dispatch.h>).
+
+*/
+
+#include <openssl/core.h>
+#include <openssl/core_dispatch.h>
+#include <openssl/params.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+#include <string.h>
+#include <stdlib.h>
+#include "bee2evp/bee2prov.h"
+
+static OSSL_FUNC_encoder_newctx_fn bign_params_encoder_newctx;
+static OSSL_FUNC_encoder_freectx_fn bign_params_encoder_freectx;
+//static OSSL_FUNC_encoder_get_params_fn 
+static OSSL_FUNC_encoder_gettable_params_fn bign_params_encoder_gettable_params;
+static OSSL_FUNC_encoder_set_ctx_params_fn bign_params_encoder_set_ctx_params;
+static OSSL_FUNC_encoder_settable_ctx_params_fn bign_params_encoder_settable_params;
+static OSSL_FUNC_encoder_does_selection_fn bign_params_encoder_does_selection;
+static OSSL_FUNC_encoder_encode_fn bign_params_encoder_encode;
+
+//static OSSL_FUNC_encoder_import_object_fn bign_to_EncryptedPrivateKeyInfo_pem_import_object; 
+//static OSSL_FUNC_encoder_free_object_fn bign_params_encoder_freectx; 
+
+
+/* Encoder-specific context */
+typedef struct {
+    const EVP_PKEY *pkey; /* The private key to encode */
+	//OSSL_LIB_CTX *libctx;
+	int save_parameters;
+} MY_KEY_ENCODER_CTX;
+
+/* Create a new encoder context */
+static void *bign_params_encoder_newctx(void *provctx) {
+    //PROV_CTX *pctx = (PROV_CTX *)provctx;
+    MY_KEY_ENCODER_CTX *ctx = OPENSSL_zalloc(sizeof(MY_KEY_ENCODER_CTX));
+	printf("81-bign-encoder newctx\n");
+    if (ctx == NULL) {
+        return NULL;
+    }
+    ctx->pkey = NULL;
+	//ctx->libctx = pctx->libctx;
+    return ctx;
+}
+
+/* Free the encoder context */
+static void bign_params_encoder_freectx(void *vctx) {
+    MY_KEY_ENCODER_CTX *ctx = (MY_KEY_ENCODER_CTX *)vctx;
+    if (ctx) {
+        OPENSSL_free(ctx);
+    }
+}
+
+/* Check if the encoder supports the given selection and key type */
+static int bign_params_encoder_does_selection(void *vctx, int selection) {
+    /* This encoder supports private key encoding */
+	printf("82-bign-encoder does_selection %d\n", selection);
+    return (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY
+		|| selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) ? 1 : 0;
+}
+
+/* Encode the key into PEM PrivateKeyInfo */
+static int bign_params_encoder_encode(void *vctx, OSSL_CORE_BIO *out, const void *key, 
+                                  const OSSL_PARAM params[], int selection, 
+                                  OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg) {
+    const bign_key *pkey = (const bign_key *)key;
+	octet buf[1000];
+	octet *der = buf;
+	size_t written;
+	bool_t specified;
+	printf("85-bign-encoder encode %d\n", selection);
+
+    if (pkey == NULL || !(selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS)) {
+        ERR_raise(ERR_LIB_PROV, ERR_R_PASSED_NULL_PARAMETER);
+        return 0;
+    }
+	printf("85-bign-encoder check key\n");
+	if(!evpBign_asn1_i2d_params(&der, &specified, pkey))
+		return 0;
+	printf("85-bign-encoder write to buf\n");
+	if (out == NULL) {
+        return 0;
+    }
+	printf("85-bign-encoder write to output\n");
+	if(!BIO_write_ex(out, (char*) buf, der-buf, &written))
+		return 0;
+	printf("85-bign-encoder finish\n");
+    return 1;
+}
+
+/* Gettable parameters for the encoder context */
+static const OSSL_PARAM *bign_params_encoder_gettable_params(void *provctx) {
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_utf8_string("output", NULL, 0), /* PEM or DER */
+        OSSL_PARAM_END
+    };
+	printf("83-bign-encoder gettable\n");
+    return params;
+}
+
+/* Settable parameters for the encoder context */
+static const OSSL_PARAM *bign_params_encoder_settable_params(void *provctx) {
+    static const OSSL_PARAM params[] = {
+        OSSL_PARAM_utf8_string("output", NULL, 0), /* PEM or DER */
+        OSSL_PARAM_int("save-parameters", NULL), 
+        OSSL_PARAM_END
+    };
+	printf("83-bign-encoder settable\n");
+    return params;
+}
+
+/* Set encoder parameters */
+static int bign_params_encoder_set_ctx_params(void *vctx, const OSSL_PARAM params[]) {
+    const OSSL_PARAM *p;
+
+    MY_KEY_ENCODER_CTX *ctx = (MY_KEY_ENCODER_CTX *)vctx;
+	print_params(params);
+    if ((p = OSSL_PARAM_locate_const(params, "output")) != NULL) {
+        /* This template only supports PEM encoding */
+        if (strcmp(p->data, "PEM") != 0) {
+            ERR_raise(ERR_LIB_PROV, ERR_R_UNSUPPORTED);
+            return 0;
+        }
+    }
+	//const OSSL_PARAM *cipherp =
+    //    OSSL_PARAM_locate_const(params, OSSL_ENCODER_PARAM_CIPHER);
+   	// p = OSSL_PARAM_locate_const(params, OSSL_ENCODER_PARAM_PROPERTIES);
+	p = OSSL_PARAM_locate_const(params, "save-parameters");
+    if (p != NULL) {
+        if (!OSSL_PARAM_get_int(p, &ctx->save_parameters))
+            return 0;
+    }
+	printf("84-bign-encoder set_ctx_params\n");
+    return 1;
+}
+
+/* Dispatch table for the encoder functions */
+const OSSL_DISPATCH bign_params_encoder_functions[] = {
+    { OSSL_FUNC_ENCODER_NEWCTX, (void (*)(void))bign_params_encoder_newctx },
+    { OSSL_FUNC_ENCODER_FREECTX, (void (*)(void))bign_params_encoder_freectx },
+    { OSSL_FUNC_ENCODER_DOES_SELECTION, (void (*)(void))bign_params_encoder_does_selection },
+    { OSSL_FUNC_ENCODER_ENCODE, (void (*)(void))bign_params_encoder_encode },
+//    { OSSL_FUNC_ENCODER_GETTABLE_PARAMS, (void (*)(void))bign_params_encoder_gettable_params },
+    { OSSL_FUNC_ENCODER_SETTABLE_CTX_PARAMS, (void (*)(void))bign_params_encoder_settable_params },
+    { OSSL_FUNC_ENCODER_SET_CTX_PARAMS, (void (*)(void))bign_params_encoder_set_ctx_params },
+    { 0, NULL }
+};
+
+
+// static OSSL_FUNC_encoder_import_object_fn rsa_to_EncryptedPrivateKeyInfo_pem_import_object; 
+// static OSSL_FUNC_encoder_free_object_fn rsa_to_EncryptedPrivateKeyInfo_pem_free_object; 
+// static OSSL_FUNC_encoder_encode_fn rsa_to_EncryptedPrivateKeyInfo_pem_encode; 
+
+// static void * rsa_to_EncryptedPrivateKeyInfo_pem_import_object(void *vctx, int selection, const OSSL_PARAM params[]) 
+// { 
+//     KEY2ANY_CTX *ctx = vctx; 
+//     return ossl_prov_import_key(ossl_rsa_keymgmt_functions, ctx->provctx, selection, params); 
+// } 
+
+// static void rsa_to_EncryptedPrivateKeyInfo_pem_free_object(void *key) 
+// { 
+//     ossl_prov_free_key(ossl_rsa_keymgmt_functions, key); 
+// } 
+
+// static int rsa_to_EncryptedPrivateKeyInfo_pem_does_selection(void *ctx, int selection) 
+// { 
+//     return key2any_check_selection(selection, 0x01); 
+// } 
+
+// static int rsa_to_EncryptedPrivateKeyInfo_pem_encode(
+//     void *ctx, OSSL_CORE_BIO *cout, const void *key, 
+//     const OSSL_PARAM key_abstract[], int selection, OSSL_PASSPHRASE_CALLBACK *cb, void *cbarg) 
+// { 
+//     if (key_abstract != ((void*)0)) 
+//     { 
+//         ERR_raise(ERR_LIB_PROV, (7)); return 0; 
+//     } 
+//     if ((selection & 0x01) != 0) 
+//         return key2any_encode(ctx, cout, key, 6, "RSA" " PRIVATE KEY", rsa_check_key_type, key_to_epki_pem_priv_bio, cb, cbarg, prepare_rsa_params, rsa_prv_k2d); 
+//     ERR_raise(ERR_LIB_PROV, (7)); 
+//     return 0; 
+// } 
+
+// const OSSL_DISPATCH ossl_rsa_to_EncryptedPrivateKeyInfo_pem_encoder_functions[] = {
+//      { 1, (void (*)(void))key2any_newctx }, 
+//      { 2, (void (*)(void))key2any_freectx }, 
+//      { 6, (void (*)(void))key2any_settable_ctx_params }, 
+//      { 5, (void (*)(void))key2any_set_ctx_params }, 
+//      { 10, (void (*)(void))rsa_to_EncryptedPrivateKeyInfo_pem_does_selection }, 
+//      { 20, (void (*)(void))rsa_to_EncryptedPrivateKeyInfo_pem_import_object }, 
+//      { 21, (void (*)(void))rsa_to_EncryptedPrivateKeyInfo_pem_free_object }, 
+//      { 11, (void (*)(void))rsa_to_EncryptedPrivateKeyInfo_pem_encode }, 
+//      { 0, ((void*)0) } 
+// };
+
+#endif // OPENSSL_VERSION_MAJOR >= 3

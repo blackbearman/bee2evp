@@ -212,7 +212,9 @@ static int provBeltPBKDF_derive(void *vctx, unsigned char *out, size_t outlen, c
         return 0; 
     // Minimal number of iteration is 10000
     if (ctx->iter < 10000) 
+    {
         ctx->iter = 10000;
+    } 
  	// построить ключ
 	key = blobCreate(32);
 	if (!key)

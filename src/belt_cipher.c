@@ -30,6 +30,50 @@
 #include <openssl/types.h>
 #include "bee2evp/bee2prov.h"
 
+/*
+*******************************************************************************
+Общие замечания
+
+\remark Ключ шифрования задается параметром -k -> -pass (строка), -kfile (файл), 
+-K (шестнадцатиричная строка). При задании ключа из файла считывается только 
+первая строка, переносы строк отбрасываются.
+
+\remark Для генерации ключа по паролю задаются опции:
+-pbkdf2 <alg> -iter <num> 
+
+\remark Если длина ключа отличается от запрашиваемой алгоритмом, то OpenSSL либо 
+дополняет его нулями, либо обрезает до нужной длины.
+
+\remark Всё сообщение передается в функцию шифрования целиком, поэтому возможна
+"кража блока" в режимах ECB и CBC, предусмотренная в СТБ 34.101.31.
+
+\todo Найти верхнюю границу, при которой сообщение начинает делиться на блоки.
+\todo Рассмотреть случай, когда длина данных меньше дины блока.
+
+\remark В bee2evp не используется выделение памяти функциями 
+#include <openssl/crypto.h>.
+
+evp.h:
+# define         EVP_CIPH_STREAM_CIPHER          0x0
+# define         EVP_CIPH_ECB_MODE               0x1
+# define         EVP_CIPH_CBC_MODE               0x2
+# define         EVP_CIPH_CFB_MODE               0x3
+# define         EVP_CIPH_OFB_MODE               0x4
+# define         EVP_CIPH_CTR_MODE               0x5
+# define         EVP_CIPH_GCM_MODE               0x6
+# define         EVP_CIPH_CCM_MODE               0x7
+# define         EVP_CIPH_XTS_MODE               0x10001
+# define         EVP_CIPH_WRAP_MODE              0x10002
+# define         EVP_CIPH_OCB_MODE               0x10003
+# define         EVP_CIPH_SIV_MODE               0x10004
+# define         EVP_CIPH_GCM_SIV_MODE           0x10005
+# define         EVP_CIPH_MODE                   0xF0007
+
+
+
+*******************************************************************************
+*/
+
 /* Cipher-specific context */
 typedef struct {
 	void* state; 			// inner state
@@ -144,12 +188,12 @@ int cipher_get_params(
 
 int cipher_get_ctx_params(void *vctx, OSSL_PARAM params[])
 {
-	printf("07-ecb-ctx-get-params start \n");
-    belt_ctx *ctx = (belt_ctx *)vctx;
+	belt_ctx *ctx = (belt_ctx *)vctx;
     OSSL_PARAM *p;
 
 	int i = 0;
-	while (params[i].key != NULL) {
+	printf("07-ecb-ctx-get-params start \n");
+    while (params[i].key != NULL) {
 		printf("07-ecb-ctx-get-params param %s \n", params[i].key);
 		i++;
 	}
@@ -194,8 +238,8 @@ int cipher_get_ctx_params(void *vctx, OSSL_PARAM params[])
 
 int cipher_set_ctx_params(void *vctx, const OSSL_PARAM params[])
 {
-	printf("08-ecb-ctx-set-params start \n");
 	int i = 0;
+	printf("08-ecb-ctx-set-params start \n");
 	while (params[i].key != NULL) {
 		printf("08-ecb-ctx-set-params %s \n", params[i].key);
 		i++;
@@ -239,15 +283,15 @@ static const OSSL_PARAM cipher_ctx_params[] = {
     OSSL_PARAM_uint("num", NULL),                              
     OSSL_PARAM_octet_string("iv", NULL, 0),                    
     OSSL_PARAM_octet_string("updated-iv", NULL, 0),
+	OSSL_PARAM_octet_ptr("tls-mac",  NULL, 0),
     OSSL_PARAM_END                                                             
 };                                                                             
-const OSSL_PARAM * cipher_gettable_ctx_params(ossl_unused void *cctx,          
-                                              ossl_unused void *provctx)      
+const OSSL_PARAM * cipher_gettable_ctx_params(
+	ossl_unused void *cctx, ossl_unused void *provctx)      
 {   
 	printf("06-ecb-gettable_ctx_params start \n");                                                                          
     return cipher_ctx_params;                                  
 }
-
 
 #define BELT_ECB_FLAGS 0
 /* Cipher context cleanup */
@@ -325,7 +369,7 @@ static int provBeltECB_final(void *vctx, unsigned char *out, size_t *outlen, siz
 
 static int provBeltECB_get_params(OSSL_PARAM params[]) {
 	printf("12-provBeltECB_get_params start \n");
-	return cipher_get_params(params, 0x1, BELT_ECB_FLAGS, 16, 16, 0);
+	return cipher_get_params(params, EVP_CIPH_ECB_MODE, BELT_ECB_FLAGS, 16, 16, 0);
 }
 
 // /* Set parameters for the cipher context */
