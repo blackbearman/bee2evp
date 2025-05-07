@@ -310,7 +310,6 @@ static const OSSL_PARAM *provBign_gen_settable_params(ossl_unused void *genctx,
 /* Generate a private key */
 static void* provBign_key_generate(void *vctx, OSSL_CALLBACK *cb, void *cbarg) {
     bign_gen_ctx *ctx = (bign_gen_ctx *)vctx;
-    EVP_PKEY* pkey;
     bign_key* key;
     printf("74-bign_gen Start\n");
 	// разобрать указатели
@@ -342,6 +341,8 @@ static void* provBign_key_generate(void *vctx, OSSL_CALLBACK *cb, void *cbarg) {
 		}
 	}
     printf("74-bign_gen Last step\n");
+    key->flags = EVP_BIGN_PKEY_ENC_PARAMS_SPECIFIED 
+        || EVP_BIGN_PKEY_ENC_PARAMS_COFACTOR;
 	// сгенерировать пару ключей
 	if(bignKeypairGen(key->privkey, key->pubkey, key->params, 
 		rngStepR, 0) == ERR_OK) 
@@ -411,7 +412,7 @@ static const OSSL_PARAM *provBign_key_gettable_params(void *provctx) {
 
 /* Set parameters for loading a private key */
 static int provBign_key_get_params(void *vctx, OSSL_PARAM params[]) {
-    bign_key *ctx = (bign_key *)vctx;
+    //bign_key *ctx = (bign_key *)vctx;
     const OSSL_PARAM *p;
 
     if ((p = OSSL_PARAM_locate_const(params, "privkey")) != NULL) {

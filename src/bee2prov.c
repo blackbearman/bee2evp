@@ -23,6 +23,133 @@
 #include "bee2evp/bee2prov.h"
 #include "bee2evp/info.h"
 
+
+static OSSL_FUNC_BIO_new_file_fn *c_bio_new_file = NULL;
+static OSSL_FUNC_BIO_new_membuf_fn *c_bio_new_membuf = NULL;
+static OSSL_FUNC_BIO_read_ex_fn *c_bio_read_ex = NULL;
+static OSSL_FUNC_BIO_write_ex_fn *c_bio_write_ex = NULL;
+static OSSL_FUNC_BIO_gets_fn *c_bio_gets = NULL;
+static OSSL_FUNC_BIO_puts_fn *c_bio_puts = NULL;
+static OSSL_FUNC_BIO_ctrl_fn *c_bio_ctrl = NULL;
+static OSSL_FUNC_BIO_up_ref_fn *c_bio_up_ref = NULL;
+static OSSL_FUNC_BIO_free_fn *c_bio_free = NULL;
+static OSSL_FUNC_BIO_vprintf_fn *c_bio_vprintf = NULL;
+
+int ossl_prov_bio_from_dispatch(const OSSL_DISPATCH *fns)
+{
+    for (; fns->function_id != 0; fns++) {
+        switch (fns->function_id) {
+        case OSSL_FUNC_BIO_NEW_FILE:
+            if (c_bio_new_file == NULL)
+                c_bio_new_file = OSSL_FUNC_BIO_new_file(fns);
+            break;
+        case OSSL_FUNC_BIO_NEW_MEMBUF:
+            if (c_bio_new_membuf == NULL)
+                c_bio_new_membuf = OSSL_FUNC_BIO_new_membuf(fns);
+            break;
+        case OSSL_FUNC_BIO_READ_EX:
+            if (c_bio_read_ex == NULL)
+                c_bio_read_ex = OSSL_FUNC_BIO_read_ex(fns);
+            break;
+        case OSSL_FUNC_BIO_WRITE_EX:
+            if (c_bio_write_ex == NULL)
+                c_bio_write_ex = OSSL_FUNC_BIO_write_ex(fns);
+            break;
+        case OSSL_FUNC_BIO_GETS:
+            if (c_bio_gets == NULL)
+                c_bio_gets = OSSL_FUNC_BIO_gets(fns);
+            break;
+        case OSSL_FUNC_BIO_PUTS:
+            if (c_bio_puts == NULL)
+                c_bio_puts = OSSL_FUNC_BIO_puts(fns);
+            break;
+        case OSSL_FUNC_BIO_CTRL:
+            if (c_bio_ctrl == NULL)
+                c_bio_ctrl = OSSL_FUNC_BIO_ctrl(fns);
+            break;
+        case OSSL_FUNC_BIO_UP_REF:
+            if (c_bio_up_ref == NULL)
+                c_bio_up_ref = OSSL_FUNC_BIO_up_ref(fns);
+            break;
+        case OSSL_FUNC_BIO_FREE:
+            if (c_bio_free == NULL)
+                c_bio_free = OSSL_FUNC_BIO_free(fns);
+            break;
+        case OSSL_FUNC_BIO_VPRINTF:
+            if (c_bio_vprintf == NULL)
+                c_bio_vprintf = OSSL_FUNC_BIO_vprintf(fns);
+            break;
+        }
+    }
+
+    return 1;
+}
+
+OSSL_CORE_BIO *ossl_prov_bio_new_file(const char *filename, const char *mode)
+{
+    if (c_bio_new_file == NULL)
+        return NULL;
+    return c_bio_new_file(filename, mode);
+}
+
+OSSL_CORE_BIO *ossl_prov_bio_new_membuf(const char *filename, int len)
+{
+    if (c_bio_new_membuf == NULL)
+        return NULL;
+    return c_bio_new_membuf(filename, len);
+}
+
+int ossl_prov_bio_read_ex(OSSL_CORE_BIO *bio, void *data, size_t data_len,
+                          size_t *bytes_read)
+{
+    if (c_bio_read_ex == NULL)
+        return 0;
+    return c_bio_read_ex(bio, data, data_len, bytes_read);
+}
+
+int ossl_prov_bio_write_ex(OSSL_CORE_BIO *bio, const void *data, size_t data_len,
+                           size_t *written)
+{
+    if (c_bio_write_ex == NULL)
+        return 0;
+    return c_bio_write_ex(bio, data, data_len, written);
+}
+
+int ossl_prov_bio_gets(OSSL_CORE_BIO *bio, char *buf, int size)
+{
+    if (c_bio_gets == NULL)
+        return -1;
+    return c_bio_gets(bio, buf, size);
+}
+
+int ossl_prov_bio_puts(OSSL_CORE_BIO *bio, const char *str)
+{
+    if (c_bio_puts == NULL)
+        return -1;
+    return c_bio_puts(bio, str);
+}
+
+int ossl_prov_bio_ctrl(OSSL_CORE_BIO *bio, int cmd, long num, void *ptr)
+{
+    if (c_bio_ctrl == NULL)
+        return -1;
+    return c_bio_ctrl(bio, cmd, num, ptr);
+}
+
+int ossl_prov_bio_up_ref(OSSL_CORE_BIO *bio)
+{
+    if (c_bio_up_ref == NULL)
+        return 0;
+    return c_bio_up_ref(bio);
+}
+
+int ossl_prov_bio_free(OSSL_CORE_BIO *bio)
+{
+    if (c_bio_free == NULL)
+        return 0;
+    return c_bio_free(bio);
+}
+
 /* Provider-specific data structure (if needed) */
 typedef struct {
     /* Add custom provider-specific data here */
@@ -138,7 +265,7 @@ static const OSSL_ALGORITHM bee2_provider_signatures[] = {
 };
 
 static const OSSL_ALGORITHM bee2_provider_encoders[] = {
-    { "bign", "provider=bee2pro,output=pem,structure=DomainParameters", 
+    { "bign", "provider=bee2pro,output=PEM,structure=type-specific", 
         bign_params_encoder_functions, "Encoder for BIGN domain parameters" },
     { NULL, NULL, NULL, NULL }
 };
@@ -202,6 +329,7 @@ int OSSL_provider_init(
     }
     /* Set the dispatch table */
     *out = bee2_provider_dispatch_table;
+    ossl_prov_bio_from_dispatch(in);
     return 1; /* Initialization successful */
 }
 

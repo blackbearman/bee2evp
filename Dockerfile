@@ -123,7 +123,9 @@ RUN openssl kdf -keylen 32 -kdfopt iter:2 -kdfopt pass:password\
     -kdfopt salt:00112233445566778899AABBCCDDEEFF -provider bee2pro belt-pbkdf
 
 RUN	openssl genpkey -provider bee2pro -genparam -algorithm bign -pkeyopt params:bign-curve256v1 \
-  -out params256 
+	-out params256 
+
+RUN cat params256
 
 RUN openssl genpkey -provider bee2pro -paramfile params256 -out privkey.pem \
 -pass pass:1111
