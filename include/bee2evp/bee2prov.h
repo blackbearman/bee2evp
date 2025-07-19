@@ -9,6 +9,7 @@ extern "C" {
 
 #if OPENSSL_VERSION_MAJOR >= 3
 #include <openssl/types.h>
+#include "bee2/crypto/bign.h"
 
 // Common functions for all digests
 const OSSL_PARAM *md_gettable_params(void *provctx);
@@ -35,6 +36,12 @@ void print_params(const OSSL_PARAM params[]);
 
 extern const OSSL_DISPATCH bign_params_encoder_functions[];
 
+extern const OSSL_DISPATCH bign_params_decoder_functions[];
+
+extern const OSSL_DISPATCH bign_key_encoder_functions[];
+
+extern const OSSL_DISPATCH bign_key_decoder_functions[];
+
 void provBign_freectx(void *vctx);
 void *provBign_newctx(void *provctx, const char *propquery);
 int provBign_sign_init(void *vctx, void *provkey, const OSSL_PARAM params[]);
@@ -60,7 +67,11 @@ int ossl_prov_bio_free(OSSL_CORE_BIO *bio);
 int ossl_prov_bio_vprintf(OSSL_CORE_BIO *bio, const char *format, va_list ap);
 int ossl_prov_bio_printf(OSSL_CORE_BIO *bio, const char *format, ...);
 
+int ossl_core_obj_create(const OSSL_CORE_HANDLE *prov, const char *oid, const char *sn, const char *ln);
 
+err_t bignParamsPrint(
+	const bign_params* params	/*!< [in] долговременные параметры */
+);
 #endif // OPENSSL_VERSION_MAJOR >= 3
 
 #ifdef __cplusplus

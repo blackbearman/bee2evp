@@ -141,7 +141,10 @@ set(src
   src/bign_asn1.c
   src/bign_pmeth.c
   src/bign_kmgmt.c
+  src/bign_dec.c
   src/bign_enc.c
+  src/params_dec.c
+  src/params_enc.c
   src/bee2prov.c
 )
 

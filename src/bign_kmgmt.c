@@ -19,6 +19,7 @@
 #include <bee2/crypto/bign.h>
 #include "bee2evp_lcl.h"
 #include "bee2evp/bee2evp.h"
+#include "bee2evp/bee2prov.h"
 
 /*
 At least one constructor and the destructor are MANDATORY
@@ -141,14 +142,15 @@ static void provBign_key_freectx(void *vctx) {
 
  /* Key loading by object reference, also a constructor */
  void *provBign_key_load(const void *reference, size_t size) {
-    MY_KEY_CTX *ctx;
+    bign_key *ctx;
+    printf("Load to BIGN key %d bytes from %d\n", size, sizeof(bign_key));
 
-    if (size == sizeof(ctx)) {
+    if (size == sizeof(bign_key)) {
         /* The contents of the reference is the address to our object */
-        ctx = *(MY_KEY_CTX **)reference;
+        ctx = *(bign_key **)reference;
 
         /* We grabbed, so we detach it */
-        *(MY_KEY_CTX **)reference = NULL;
+        *(bign_key **)reference = NULL;
         return ctx;
     }
     return NULL;
@@ -183,6 +185,7 @@ static void *provBign_gen_init(void *provctx, int selection,
     //OSSL_LIB_CTX *libctx = PROV_LIBCTX_OF(provctx);
     struct bign_gen_ctx *gctx = NULL;
     printf("71-bign_gen-init %d\n", selection);
+    print_params(params);
 
     if ((selection & BIGN_POSSIBLE_SELECTIONS) == 0)
         return NULL;
@@ -573,6 +576,7 @@ static const OSSL_PARAM *ec_types[] = {
 
 static const OSSL_PARAM *provBign_export_types(int selection)
 {
+    printf("98-bign_export_types %d", selection);
     int type_select = 0;
 
     if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0)
@@ -584,11 +588,24 @@ static const OSSL_PARAM *provBign_export_types(int selection)
     return ec_types[type_select];
 }
 
+static int provBign_gen_set_template(void *genctx, void *templ)
+{
+    struct bign_gen_ctx *gctx = genctx;
+    bign_key *key = templ;
+
+    if (gctx == NULL || key == NULL)
+        return 0;
+    printf("99-gen_set_template params init");
+    gctx->params = *(key->params);
+    bignParamsPrint(key->params);
+    return 1;
+}
+
 /* Dispatch table for key operations */
 const OSSL_DISPATCH bign_key_functions[] = {
     { OSSL_FUNC_KEYMGMT_NEW, (void (*)(void))provBign_key_newctx },
     { OSSL_FUNC_KEYMGMT_FREE, (void (*)(void))provBign_key_freectx },
-//    { OSSL_FUNC_KEYMGMT_LOAD, (void (*)(void))provBign_key_load },
+    { OSSL_FUNC_KEYMGMT_LOAD, (void (*)(void))provBign_key_load },
 //    { OSSL_FUNC_KEYMGMT_GET_PARAMS, (void (*)(void))provBign_key_get_params },
 //    { OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS, (void (*)(void))provBign_key_gettable_params },
     { OSSL_FUNC_KEYMGMT_EXPORT, (void (*)(void))provBign_key_export },
@@ -596,6 +613,7 @@ const OSSL_DISPATCH bign_key_functions[] = {
 
     { OSSL_FUNC_KEYMGMT_HAS, (void (*)(void))provBign_key_has },
     { OSSL_FUNC_KEYMGMT_GEN_INIT, (void (*)(void))provBign_gen_init },
+    { OSSL_FUNC_KEYMGMT_GEN_SET_TEMPLATE, (void (*)(void))provBign_gen_set_template },
     { OSSL_FUNC_KEYMGMT_GEN_SET_PARAMS,
       (void (*)(void))provBign_gen_set_params },
     { OSSL_FUNC_KEYMGMT_GEN_SETTABLE_PARAMS,

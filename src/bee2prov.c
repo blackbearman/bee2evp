@@ -22,6 +22,7 @@
 #include <bee2/core/rng.h>
 #include "bee2evp/bee2prov.h"
 #include "bee2evp/info.h"
+#include "bee2evp/bee2evp.h"
 
 
 static OSSL_FUNC_BIO_new_file_fn *c_bio_new_file = NULL;
@@ -34,6 +35,8 @@ static OSSL_FUNC_BIO_ctrl_fn *c_bio_ctrl = NULL;
 static OSSL_FUNC_BIO_up_ref_fn *c_bio_up_ref = NULL;
 static OSSL_FUNC_BIO_free_fn *c_bio_free = NULL;
 static OSSL_FUNC_BIO_vprintf_fn *c_bio_vprintf = NULL;
+
+static OSSL_FUNC_core_obj_create_fn *c_core_obj_create = NULL;
 
 int ossl_prov_bio_from_dispatch(const OSSL_DISPATCH *fns)
 {
@@ -79,11 +82,23 @@ int ossl_prov_bio_from_dispatch(const OSSL_DISPATCH *fns)
             if (c_bio_vprintf == NULL)
                 c_bio_vprintf = OSSL_FUNC_BIO_vprintf(fns);
             break;
+        case OSSL_FUNC_CORE_OBJ_CREATE:
+            if (c_core_obj_create == NULL)
+                c_core_obj_create = fns->function;
+            break;
         }
     }
 
     return 1;
 }
+
+int ossl_core_obj_create(const OSSL_CORE_HANDLE *prov, const char *oid, const char *sn, const char *ln)
+{
+    if (c_core_obj_create == NULL)
+        return NID_undef;
+    return c_core_obj_create(prov, oid, sn, ln);    
+}
+
 
 OSSL_CORE_BIO *ossl_prov_bio_new_file(const char *filename, const char *mode)
 {
@@ -186,8 +201,10 @@ int bee2_provider_get_params(void *provctx, OSSL_PARAM params[]) {
 static void bee2_provider_ctx_free(void *provctx) {
     BEE2_PROVIDER_CTX *ctx = (BEE2_PROVIDER_CTX *)provctx;
     if (ctx) {
+        printf("Clear bee2pro context\n");
         /* Free any resources allocated in the context */
-        rngClose();
+        if(rngIsValid())
+            rngClose();
         OPENSSL_free(ctx);
     }
 }
@@ -267,6 +284,16 @@ static const OSSL_ALGORITHM bee2_provider_signatures[] = {
 static const OSSL_ALGORITHM bee2_provider_encoders[] = {
     { "bign", "provider=bee2pro,output=PEM,structure=type-specific", 
         bign_params_encoder_functions, "Encoder for BIGN domain parameters" },
+    { "bign", "provider=bee2pro,output=PEM,structure=PrivateKeyInfo", 
+        bign_key_encoder_functions, "Encoder for BIGN domain parameters" },
+    { NULL, NULL, NULL, NULL }
+};
+
+static const OSSL_ALGORITHM bee2_provider_decoders[] = {
+    { "bign", "provider=bee2pro,input=PEM,structure=type-specific", 
+        bign_params_decoder_functions, "Decoder for BIGN domain parameters" },
+    { "bign", "provider=bee2pro,input=DER,structure=PrivateKeyInfo", 
+        bign_key_decoder_functions, "Decoder for BIGN private keys" },
     { NULL, NULL, NULL, NULL }
 };
 
@@ -293,8 +320,8 @@ static const OSSL_ALGORITHM *bee2_provider_query_operation(
             return bee2_provider_keymgmt; /* Provide key management algorithms */
         case OSSL_OP_ENCODER:
             return bee2_provider_encoders;
-//        case OSSL_OP_DECODER:
-//            return deflt_decoder;
+       case OSSL_OP_DECODER:
+           return bee2_provider_decoders;
         default:
             return NULL; /* Operation not supported */
     }
@@ -316,6 +343,19 @@ static const OSSL_DISPATCH bee2_provider_dispatch_table[] = {
     { 0, NULL } /* Terminate the list */
 };
 
+OSSL_CORE_HANDLE *prov_core = NULL;
+
+#define OBJ_REG(name)\
+	if (NID_##name == NID_undef) \
+		ossl_core_obj_create(prov_core, OID_##name, SN_##name, LN_##name);
+
+
+static int register_objects(OSSL_CORE_HANDLE *core)
+{
+    prov_core = core;
+    OBJ_REG(bign_pubkey);
+}
+
 /* Provider entry point: Called by OpenSSL to initialize the provider */
 int OSSL_provider_init(
     const OSSL_CORE_HANDLE *core, const OSSL_DISPATCH *in, 
@@ -330,147 +370,11 @@ int OSSL_provider_init(
     /* Set the dispatch table */
     *out = bee2_provider_dispatch_table;
     ossl_prov_bio_from_dispatch(in);
+    if (!register_objects(core))
+        return 0;
     return 1; /* Initialization successful */
 }
 
 #endif // OPENSSL_VERSION_MAJOR >= 3
 
-// #include <openssl/core.h>
-// #include <openssl/core_dispatch.h>
-// #include <openssl/provider.h>
-// #include <openssl/params.h>
-// #include <openssl/evp.h>
-// #include <openssl/err.h>
-// #include <string.h>
-// #include <stdlib.h>
-
-// /* Key-specific context */
-// typedef struct {
-//     EVP_PKEY *pkey;    /* Key structure */
-//     size_t bits;       /* Key size (in bits) */
-//     size_t pub_exp;    /* Public exponent for RSA keys */
-// } MY_KEYGEN_CTX;
-
-// /* Create a new key generation context */
-// static void *my_keygen_newctx(void *provctx) {
-//     MY_KEYGEN_CTX *ctx = OPENSSL_zalloc(sizeof(MY_KEYGEN_CTX));
-//     if (ctx == NULL) {
-//         return NULL;
-//     }
-//     ctx->bits = 2048;        /* Default key size */
-//     ctx->pub_exp = 65537;    /* Default public exponent */
-//     return ctx;
-// }
-
-// /* Free the key generation context */
-// static void my_keygen_freectx(void *vctx) {
-//     MY_KEYGEN_CTX *ctx = (MY_KEYGEN_CTX *)vctx;
-//     if (ctx) {
-//         EVP_PKEY_free(ctx->pkey);
-//         OPENSSL_free(ctx);
-//     }
-// }
-
-// /* Set parameters for key generation */
-// static int my_keygen_set_ctx_params(void *vctx, const OSSL_PARAM params[]) {
-//     MY_KEYGEN_CTX *ctx = (MY_KEYGEN_CTX *)vctx;
-//     const OSSL_PARAM *p;
-
-//     if ((p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_BITS)) != NULL) {
-//         if (!OSSL_PARAM_get_size_t(p, &ctx->bits)) {
-//             return 0;
-//         }
-//     }
-
-//     if ((p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_RSA_E)) != NULL) {
-//         if (!OSSL_PARAM_get_size_t(p, &ctx->pub_exp)) {
-//             return 0;
-//         }
-//     }
-
-//     return 1;
-// }
-
-// /* Gettable parameters for key generation */
-// static const OSSL_PARAM *my_keygen_gettable_ctx_params(void *provctx) {
-//     static const OSSL_PARAM params[] = {
-//         OSSL_PARAM_size_t(OSSL_PKEY_PARAM_BITS, NULL), /* Key size */
-//         OSSL_PARAM_size_t(OSSL_PKEY_PARAM_RSA_E, NULL), /* RSA public exponent */
-//         OSSL_PARAM_END
-//     };
-//     return params;
-// }
-
-// /* Generate a private key */
-// static int my_keygen_generate(void *vctx, void *provkey, OSSL_CALLBACK *cb, void *cbarg) {
-//     MY_KEYGEN_CTX *ctx = (MY_KEYGEN_CTX *)vctx;
-
-//     /* RSA key generation example */
-//     BIGNUM *e = BN_new();
-//     if (e == NULL || !BN_set_word(e, ctx->pub_exp)) {
-//         BN_free(e);
-//         return 0;
-//     }
-
-//     RSA *rsa = RSA_new();
-//     if (rsa == NULL || !RSA_generate_key_ex(rsa, ctx->bits, e, NULL)) {
-//         BN_free(e);
-//         RSA_free(rsa);
-//         return 0;
-//     }
-
-//     BN_free(e);
-
-//     /* Set the RSA key into an EVP_PKEY structure */
-//     ctx->pkey = EVP_PKEY_new();
-//     if (ctx->pkey == NULL || !EVP_PKEY_assign_RSA(ctx->pkey, rsa)) {
-//         RSA_free(rsa);
-//         return 0;
-//     }
-
-//     return 1;
-// }
-
-// /* Export key parameters (e.g., modulus, exponent) */
-// static int my_key_export(void *vctx, OSSL_CALLBACK *export_cb, void *cbarg) {
-//     MY_KEYGEN_CTX *ctx = (MY_KEYGEN_CTX *)vctx;
-
-//     if (ctx->pkey == NULL) {
-//         ERR_raise(ERR_LIB_PROV, ERR_R_PASSED_NULL_PARAMETER);
-//         return 0; /* No key generated */
-//     }
-
-//     RSA *rsa = EVP_PKEY_get0_RSA(ctx->pkey);
-//     if (rsa == NULL) {
-//         return 0;
-//     }
-
-//     /* Extract RSA parameters */
-//     const BIGNUM *n = NULL, *e = NULL, *d = NULL, *p = NULL, *q = NULL;
-//     RSA_get0_key(rsa, &n, &e, &d);
-//     RSA_get0_factors(rsa, &p, &q);
-
-//     /* Export parameters using the callback */
-//     OSSL_PARAM params[] = {
-//         OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_N, n),
-//         OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_E, e),
-//         OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_D, d),
-//         OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_FACTOR1, p),
-//         OSSL_PARAM_BN(OSSL_PKEY_PARAM_RSA_FACTOR2, q),
-//         OSSL_PARAM_END
-//     };
-
-//     return export_cb(params, cbarg);
-// }
-
-// /* Dispatch table for key management functions */
-// static const OSSL_DISPATCH my_keymgmt_functions[] = {
-//     { OSSL_FUNC_KEYMGMT_NEW, (void (*)(void))my_keygen_newctx },
-//     { OSSL_FUNC_KEYMGMT_FREE, (void (*)(void))my_keygen_freectx },
-//     { OSSL_FUNC_KEYMGMT_SET_CTX_PARAMS, (void (*)(void))my_keygen_set_ctx_params },
-//     { OSSL_FUNC_KEYMGMT_GETTABLE_CTX_PARAMS, (void (*)(void))my_keygen_gettable_ctx_params },
-//     { OSSL_FUNC_KEYMGMT_GEN_INIT, (void (*)(void))my_keygen_generate },
-//     { OSSL_FUNC_KEYMGMT_EXPORT, (void (*)(void))my_key_export },
-//     { 0, NULL }
-// };
 
