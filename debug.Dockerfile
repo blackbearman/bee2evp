@@ -50,3 +50,5 @@ RUN OPENSSL_TRACE=DECODER openssl genpkey -provider bee2pro \
 RUN cat privkey_plain.pem
 
 RUN openssl pkey -provider bee2pro -in privkey_plain.pem -pubout -out public_key.pem 
+
+RUN cat public_key.pem

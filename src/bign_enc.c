@@ -85,39 +85,112 @@ static int bign_key_encoder_does_selection(void *vctx, int selection) {
     /* This encoder supports private key encoding */
 	printf("82-bign-encoder does_selection %d\n", selection);
     printf("82-bign-encoder does_selection %d\n", selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY);
+    printf("82-bign-encoder does_selection %d\n", selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY);
     printf("82-bign-encoder does_selection %d\n", selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS);
     
 	return (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY
+        || selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY
 		|| selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) ? 1 : 0;
 }
 
-// static int evpBign_priv_encode(PKCS8_PRIV_KEY_INFO* p8, const EVP_PKEY* pkey)
-// {
-// 	bign_key* key = (bign_key*)EVP_PKEY_get0(pkey);
-// 	void* params = 0;
-// 	int params_type = 0;
-// 	octet* privkey = 0;
-// 	// кодировать параметры
-// 	if (!evpBign_pub_encode0(&params, &params_type, key))
-// 		goto err;
-// 	// кодировать личный ключ
-// 	privkey = (octet*)OPENSSL_malloc(key->params->l / 4);
-// 	if (privkey == 0)
-// 		goto err;
-// 	memCopy(privkey, key->privkey, key->params->l / 4);
-// 	// кодировать PrivateKeyInfo
-// 	if (PKCS8_pkey_set0(p8, OBJ_nid2obj(NID_bign_pubkey), 0,
-// 		params_type, params, privkey, (int)key->params->l / 4))
-// 		return 1;
-// err:
-// 	if (params_type == V_ASN1_SEQUENCE)
-// 		ASN1_STRING_free((ASN1_STRING*)params);
-// 	else if (params_type == V_ASN1_OBJECT)
-// 		ASN1_OBJECT_free((ASN1_OBJECT*)params);
-// 	if (privkey)
-// 		OPENSSL_free(privkey);
-// 	return 0;
-// }
+static int evpBign_pub_encode0(void** params, int* params_type,
+	const bign_key* key)
+{
+	octet* out = 0;
+	int out_len;
+	bool_t specified;
+	// кодировать
+	out_len = evpBign_asn1_i2d_params(&out, &specified, key);
+    printf("57-bign-encoder кодировать %d\n", out_len);
+	if (out_len <= 0)
+		return 0;
+	// явные параметры?
+	if (specified)
+	{
+		ASN1_STRING* str;
+		str = ASN1_STRING_new();
+		if (!str)
+		{
+			OPENSSL_free(out);
+			return 0;
+		}
+		str->data = out;
+		str->length = out_len;
+		*params = str;
+		*params_type = V_ASN1_SEQUENCE;
+	}
+	// именованные параметры?
+	else
+	{
+		ASN1_OBJECT* obj;
+		OPENSSL_free(out);
+		obj = OBJ_nid2obj(evpBign_params2nid(key->params));
+		if (!obj)
+			return 0;
+		*params = obj;
+		*params_type = V_ASN1_OBJECT;
+	}
+	return 1;
+}
+
+static int evpBign_pub_encode(X509_PUBKEY* pk, const bign_key* key)
+{
+	void* params = 0;
+	int params_type = 0;
+	octet* pubkey = 0;
+	int pubkey_len;
+	// кодировать параметры
+	if (!evpBign_pub_encode0(&params, &params_type, key))
+		goto err;
+	// кодировать открытый ключ
+	pubkey_len = evpBign_asn1_i2o_pubkey(&pubkey, key);
+	if (pubkey_len <= 0)
+		goto err;
+	// кодировать SubjectPublicKeyInfo
+	if (X509_PUBKEY_set0_param(pk, OBJ_nid2obj(NID_bign_pubkey),
+			params_type, params, pubkey, pubkey_len))
+		return 1;
+err:
+	if (params_type == V_ASN1_SEQUENCE)
+		ASN1_STRING_free((ASN1_STRING*)params);
+	else if (params_type == V_ASN1_OBJECT)
+		ASN1_OBJECT_free((ASN1_OBJECT*)params);
+	if (pubkey)
+		OPENSSL_free(pubkey);
+	return 0;
+}
+
+
+static int evpBign_priv_encode(PKCS8_PRIV_KEY_INFO* p8, const bign_key* key)
+{
+	void* params = 0;
+	int params_type = 0;
+	octet* privkey = 0;
+    printf("56-bign-encoder кодировать параметры \n");
+	// кодировать параметры
+	if (!evpBign_pub_encode0(&params, &params_type, key))
+		goto err;
+	printf("56-bign-encoder кодировать личный ключ \n");
+	// кодировать личный ключ
+	privkey = (octet*)OPENSSL_malloc(key->params->l / 4);
+	if (privkey == 0)
+		goto err;
+	memCopy(privkey, key->privkey, key->params->l / 4);
+	printf("56-bign-encoder кодировать PrivateKeyInfo \n");
+	// кодировать PrivateKeyInfo
+	if (PKCS8_pkey_set0(p8, OBJ_nid2obj(NID_bign_pubkey), 0,
+		params_type, params, privkey, (int)key->params->l / 4))
+		return 1;
+err:
+	if (params_type == V_ASN1_SEQUENCE)
+		ASN1_STRING_free((ASN1_STRING*)params);
+	else if (params_type == V_ASN1_OBJECT)
+		ASN1_OBJECT_free((ASN1_OBJECT*)params);
+    printf("56-bign-encoder err \n");
+	if (privkey)
+		OPENSSL_free(privkey);
+	return 0;
+}
 
 /* Encode the key into PEM PrivateKeyInfo */
 static int bign_key_encoder_encode(void *vctx, OSSL_CORE_BIO *out, const void *key, 
@@ -136,59 +209,47 @@ static int bign_key_encoder_encode(void *vctx, OSSL_CORE_BIO *out, const void *k
     int params_type; 
     ASN1_OBJECT* alg;
     PKCS8_PRIV_KEY_INFO* p8;
+    X509_PUBKEY* pubkey;
     int ret = 0;
 	printf("55-bign-encoder encode %d\n", selection);
 
-    if (pkey == NULL || !(selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY)) {
-        //ERR_raise(ERR_LIB_PROV, ERR_R_PASSED_NULL_PARAMETER);
+    if (pkey == NULL || !(selection & OSSL_KEYMGMT_SELECT_KEYPAIR)) {
         return 0;
     }
     if (out == NULL) {
         return 0;
     }
-	printf("55-bign-encoder check key\n");
-	if (bignParamsEnc(0, &len, pkey->params) != ERR_OK)
-	    return 0;
-    der = (octet*)OPENSSL_malloc(len + 1);    
-	if (bignParamsEnc(der, &len, pkey->params) != ERR_OK)
-	    return 0;
-    // явные параметры?
-	if (specified)
-	{
-		ASN1_STRING* str;
-		str = ASN1_STRING_new();
-		if (!str)
-		{
-			OPENSSL_free(out);
-			return 0;
-		}
-		str->data = der;
-		str->length = len;
-		param = str;
-		params_type = V_ASN1_SEQUENCE;
-        bignParamsPrint(pkey->params);
-	}
- 	privkey = (octet*)OPENSSL_malloc(pkey->params->l / 4);
- 	if (privkey == 0)
- 		goto err;
-    memCopy(privkey, pkey->privkey, pkey->params->l / 4);
-    alg = OBJ_nid2obj(NID_bign_pubkey);
-    printf("55-bign-encoder get alg  id %d obj %p\n", NID_bign_pubkey, alg);
-    p8 = PKCS8_PRIV_KEY_INFO_new();
-    printf("55-bign-encoder convert to pkcs8\n");
-    // кодировать PrivateKeyInfo
-	if (!PKCS8_pkey_set0(p8, alg, 0,
-		params_type, param, privkey, (int)pkey->params->l / 4))
-		goto err;
-	printf("55-bign-encoder write to buf\n");
-    strCopy(buf, "-----BEGIN PRIVATE KEY-----\n");
-    walker = buf + strlen(buf);
-    len = i2d_PKCS8_PRIV_KEY_INFO(p8, &pk);
-    printf("55-bign-encoder p8 %d\n", len);
-    b64From(walker, pk, len);
-    walker = buf + strlen(buf);
-    strCopy(walker, "\n-----END PRIVATE KEY-----\n");
-
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) 
+    {
+        p8 = PKCS8_PRIV_KEY_INFO_new();
+        printf("55-bign-encoder convert to pkcs8\n");
+        if(!evpBign_priv_encode(p8, pkey))
+            goto err;
+        printf("55-bign-encoder write to buf\n");
+        strCopy(buf, "-----BEGIN PRIVATE KEY-----\n");
+        walker = buf + strlen(buf);
+        len = i2d_PKCS8_PRIV_KEY_INFO(p8, &pk);
+        printf("55-bign-encoder p8 %d\n", len);
+        b64From(walker, pk, len);
+        walker = buf + strlen(buf);
+        strCopy(walker, "\n-----END PRIVATE KEY-----\n");
+    } 
+    else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) 
+    {
+        pubkey = X509_PUBKEY_new();
+        printf("55-bign-encoder convert to x509 pk\n");
+        if(!evpBign_pub_encode(pubkey, pkey))
+            goto err;
+        printf("55-bign-encoder write to buf\n");
+        strCopy(buf, "-----BEGIN PUBLIC KEY-----\n");
+        walker = buf + strlen(buf);
+        len = i2d_X509_PUBKEY(pubkey, &pk);
+        printf("55-bign-encoder x509 %d\n", len);
+        b64From(walker, pk, len);
+        walker = buf + strlen(buf);
+        strCopy(walker, "\n-----END PUBLIC KEY-----\n");        
+    }
+    
 	printf("55-bign-encoder write to output %s\n", buf);
 	if(!ossl_prov_bio_write_ex(out, buf, strlen(buf), &written))
 		return 0;

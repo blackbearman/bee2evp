@@ -285,7 +285,9 @@ static const OSSL_ALGORITHM bee2_provider_encoders[] = {
     { "bign", "provider=bee2pro,output=PEM,structure=type-specific", 
         bign_params_encoder_functions, "Encoder for BIGN domain parameters" },
     { "bign", "provider=bee2pro,output=PEM,structure=PrivateKeyInfo", 
-        bign_key_encoder_functions, "Encoder for BIGN domain parameters" },
+        bign_key_encoder_functions, "Encoder for BIGN private key" },
+    { "bign", "provider=bee2pro,output=PEM,structure=SubjectPublicKeyInfo", 
+        bign_key_encoder_functions, "Encoder for BIGN public key" },
     { NULL, NULL, NULL, NULL }
 };
 
@@ -354,6 +356,10 @@ static int register_objects(OSSL_CORE_HANDLE *core)
 {
     prov_core = core;
     OBJ_REG(bign_pubkey);
+    OBJ_REG(bign_curve256v1);
+    OBJ_REG(bign_curve384v1);
+    OBJ_REG(bign_curve512v1);
+    OBJ_REG(bign_primefield);
 }
 
 /* Provider entry point: Called by OpenSSL to initialize the provider */
