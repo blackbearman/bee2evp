@@ -222,6 +222,8 @@ static int bign_key_encoder_encode(void *vctx, OSSL_CORE_BIO *out, const void *k
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) 
     {
         p8 = PKCS8_PRIV_KEY_INFO_new();
+        if (!p8)
+            goto err;
         printf("55-bign-encoder convert to pkcs8\n");
         if(!evpBign_priv_encode(p8, pkey))
             goto err;
@@ -237,6 +239,8 @@ static int bign_key_encoder_encode(void *vctx, OSSL_CORE_BIO *out, const void *k
     else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) 
     {
         pubkey = X509_PUBKEY_new();
+        if (!pubkey)
+            goto err;
         printf("55-bign-encoder convert to x509 pk\n");
         if(!evpBign_pub_encode(pubkey, pkey))
             goto err;

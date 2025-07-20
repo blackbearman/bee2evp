@@ -32,6 +32,7 @@ L<provider-base(7)/Core functions>: <openssl/core_dispatch.h>).
 
 #include "bee2evp/bee2prov.h"
 #include "bee2evp_lcl.h"
+#include "bee2evp/bee2evp.h"
 
 
 /*
@@ -86,46 +87,85 @@ static int bign_key_decoder_does_selection(void *vctx, int selection) {
     printf("92-bign-decoder does_selection %d\n", selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY);
     printf("92-bign-decoder does_selection %d\n", selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS);
     
-	return (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY
+	return (selection & OSSL_KEYMGMT_SELECT_KEYPAIR
 		|| selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) ? 1 : 0;
 }
 
 
-// static int evpBign_priv_decode(EVP_PKEY* pkey, const PKCS8_PRIV_KEY_INFO* p8)
-// {
-// 	const octet* privkey;
-// 	int privkey_len;
-// 	const void* params;
-// 	const X509_ALGOR* palg;
-// 	int params_type;
-// 	bign_key* key;
-// 	// разобрать PrivateKeyInfo
-// 	if (!PKCS8_pkey_get0(0, &privkey, &privkey_len, &palg, p8))
-// 		return 0;
-// 	X509_ALGOR_get0(0, &params_type, &params, palg);
-// 	// создать ключ
-// 	key = (bign_key*)blobCreate(sizeof(bign_key));
-// 	if (!key)
-// 		return 0;
-// 	// декодировать параметры открытого ключа
-// 	if (!evpBign_pub_decode0(key, params_type, params))
-// 		goto err;
-// 	// проверить длину личного ключа
-// 	if (privkey_len * 4 != (int)key->params->l)
-// 		goto err;
-// 	// сохранить личный ключ
-// 	memCopy(key->privkey, privkey, privkey_len);
-// 	// вычислить открытый ключ
-// 	if (bignPubkeyCalc(key->pubkey, key->params, key->privkey) != ERR_OK)
-// 		goto err;
-// 	// зафиксировать key
-// 	EVP_PKEY_assign(pkey, NID_bign_pubkey, key);
-// 	return 1;
-// err:
-// 	if (key)
-// 		blobClose(key);
-// 	return 0;
-// }
+static int evpBign_pub_decode0(bign_key* key, int params_type, 
+	const void* params)
+{
+	// параметры заданы явно?
+	if (params_type == V_ASN1_SEQUENCE)
+	{
+		const ASN1_STRING* str = (const ASN1_STRING*)params;
+		const octet* in = str->data;
+		int in_len = str->length;
+		bool_t specified;
+		return evpBign_asn1_d2i_params(key, &specified, &in, in_len) &&
+			specified;
+	}
+	// параметры заданы неявно?
+	if (params_type == V_ASN1_OBJECT)
+	{
+		int nid = OBJ_obj2nid((const ASN1_OBJECT*)params);
+		return evpBign_nid2params(key->params, nid);
+	}
+	return 0;
+}
+
+static int evpBign_pub_decode(bign_key* key, CONST3 X509_PUBKEY* pk)
+{
+	const octet* pubkey;
+	int pubkey_len;
+	const void* params;
+	X509_ALGOR* palg;
+	int params_type;
+	// разобрать SubjectPublicKeyInfo
+	if (!X509_PUBKEY_get0_param(0, &pubkey, &pubkey_len, &palg, pk))
+		return 0;
+	X509_ALGOR_get0(0, &params_type, &params, palg);
+	// декодировать параметры открытого ключа
+	if (!evpBign_pub_decode0(key, params_type, params))
+		goto err;
+	// декодировать открытый ключ
+	if (!evpBign_asn1_o2i_pubkey(key, &pubkey, pubkey_len))
+		goto err;
+	return 1;
+err:
+	if (key)
+		blobClose(key);
+	return 0;
+}
+
+static int evpBign_priv_decode(bign_key* key, const PKCS8_PRIV_KEY_INFO* p8)
+{
+	const octet* privkey;
+	int privkey_len;
+	const void* params;
+	const X509_ALGOR* palg;
+	int params_type;
+	// разобрать PrivateKeyInfo
+	if (!PKCS8_pkey_get0(0, &privkey, &privkey_len, &palg, p8))
+		return 0;
+	X509_ALGOR_get0(0, &params_type, &params, palg);
+	// декодировать параметры открытого ключа
+	if (!evpBign_pub_decode0(key, params_type, params))
+		goto err;
+	// проверить длину личного ключа
+	if (privkey_len * 4 != (int)key->params->l)
+		goto err;
+	// сохранить личный ключ
+	memCopy(key->privkey, privkey, privkey_len);
+	// вычислить открытый ключ
+	if (bignPubkeyCalc(key->pubkey, key->params, key->privkey) != ERR_OK)
+		goto err;
+	return 1;
+err:
+	if (key)
+		blobClose(key);
+	return 0;
+}
 
 
 /* Encode the key into PEM PrivateKeyInfo */
@@ -133,26 +173,13 @@ static int bign_key_decoder_decode(void *vctx, OSSL_CORE_BIO *in,
     int selection, OSSL_CALLBACK *data_cb, void *data_cbarg, 
     OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg) {
     int ok = 0;
-    //bign_key *pkey = (bign_key*) blobCreate(sizeof(bign_key));
-	octet der[1000];
-	char buf[1000];
-    char base64[1000];
-	size_t len = 1000;
+	unsigned char buf[1000];
 	size_t read = 0;
-    char* walker;
-    const char* checker;
-    char* setter;
-    const char header[] = "-----BEGIN bign PRIVATE KEY-----";
-    const char footer[] = "-----END bign PRIVATE KEY-----";
-    err_t err;
+    unsigned char* walker;
     int ret = 0;
     PKCS8_PRIV_KEY_INFO* p8;
-    const octet* privkey;
-	int privkey_len;
-	const void* params;
-	const X509_ALGOR* palg;
-	int params_type;
     bign_key* key = 0;
+    X509_PUBKEY* pubkey;
 	//bool_t specified = TRUE;
     printf("45-bign-decoder decode %d\n", selection);
     printf("45-bign-decoder data_cbarg %p\n", data_cbarg);
@@ -164,51 +191,36 @@ static int bign_key_decoder_decode(void *vctx, OSSL_CORE_BIO *in,
     if(!ossl_prov_bio_read_ex(in, buf, 1000, &read))
         return 0;
 
-    if (!(selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY)) {
+    if (!(selection & OSSL_KEYMGMT_SELECT_KEYPAIR)) {
         return 0;
     }
-
-    printf("45-bign-decoder read (%d) %.*s\n", read, read, buf);
-    walker = buf;
-    p8 = d2i_PKCS8_PRIV_KEY_INFO(NULL, &walker, read);
-    if (!p8)
-        goto err;
-    printf("45-bign-decoder p8 decoded\n");
-    // разобрать PrivateKeyInfo
-	if (!PKCS8_pkey_get0(0, &privkey, &privkey_len, &palg, p8))
-		goto err;
-	X509_ALGOR_get0(0, &params_type, &params, palg);
     // создать ключ
 	key = (bign_key*)blobCreate(sizeof(bign_key));
-    memSetZero(key, sizeof(bign_key));
 	if (!key)
-		goto err;
-    printf("45-bign-decoder decode\n");
-    // декодировать параметры открытого ключа
-	//if (!evpBign_pub_decode0(key, params_type, params))
-	//	goto err;
-    // параметры заданы явно?
-	if (params_type == V_ASN1_SEQUENCE)
-	{
-		const ASN1_STRING* str = (const ASN1_STRING*)params;
-		const octet* in = str->data;
-		int in_len = str->length;
-        err = bignParamsDec(key->params, in, in_len);
-        if ( err != ERR_OK) {
-            printf("45-bign-decoder decode %d (%s)\n", err, errMsg(err));
+		return 0;
+	memSetZero(key, sizeof(bign_key));
+    printf("45-bign-decoder read (%d) %.*s\n", read, read, buf);
+    walker = buf;
+    if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) 
+    {
+        p8 = d2i_PKCS8_PRIV_KEY_INFO(NULL, &walker, read);
+        if (!p8)
             goto err;
-        }
-        bignParamsPrint(key->params);
-	}
-    // проверить длину личного ключа
-	if (privkey_len * 4 != (int)key->params->l)
-		goto err;
- 	// сохранить личный ключ
- 	memCopy(key->privkey, privkey, privkey_len);
- 	// вычислить открытый ключ
- 	if (bignPubkeyCalc(key->pubkey, key->params, key->privkey) != ERR_OK)
- 		goto err;
-    
+        printf("45-bign-decoder p8 decoded\n");
+        // декодировать параметры личного ключа
+        if (!evpBign_priv_decode(key, p8))
+            goto err;
+    }  
+    else if (selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY)   
+    {
+        pubkey = d2i_X509_PUBKEY(NULL, &walker, read);
+        if (!pubkey)
+            goto err;
+        // декодировать параметры открытого ключа
+        printf("45-bign-decoder convert from x509 pk\n");
+        if(!evpBign_pub_decode(key, pubkey))
+            goto err;
+    }
  
 	printf("45-bign-decoder write to output\n");
     if (key != NULL) {

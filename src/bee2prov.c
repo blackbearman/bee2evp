@@ -295,7 +295,9 @@ static const OSSL_ALGORITHM bee2_provider_decoders[] = {
     { "bign", "provider=bee2pro,input=PEM,structure=type-specific", 
         bign_params_decoder_functions, "Decoder for BIGN domain parameters" },
     { "bign", "provider=bee2pro,input=DER,structure=PrivateKeyInfo", 
-        bign_key_decoder_functions, "Decoder for BIGN private keys" },
+        bign_key_decoder_functions, "Decoder for BIGN private key" },
+    { "bign", "provider=bee2pro,input=DER,structure=SubjectPublicKeyInfo", 
+        bign_key_decoder_functions, "Decoder for BIGN public key" },
     { NULL, NULL, NULL, NULL }
 };
 
