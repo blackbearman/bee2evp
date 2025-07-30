@@ -8,7 +8,12 @@ extern "C" {
 #include <openssl/opensslv.h>
 
 #if OPENSSL_VERSION_MAJOR >= 3
+#include <openssl/core.h>
+#include <openssl/core_dispatch.h>
+#include <openssl/provider.h>
+#include <openssl/params.h>
 #include <openssl/types.h>
+
 #include "bee2/crypto/bign.h"
 
 // Common functions for all digests
@@ -42,16 +47,7 @@ extern const OSSL_DISPATCH bign_key_encoder_functions[];
 
 extern const OSSL_DISPATCH bign_key_decoder_functions[];
 
-void provBign_freectx(void *vctx);
-void *provBign_newctx(void *provctx, const char *propquery);
-int provBign_sign_init(void *vctx, void *provkey, const OSSL_PARAM params[]);
-int provBign_verify_init(void *vctx, void *provkey, const OSSL_PARAM params[]);
-int provBign_sign(void *vctx, unsigned char *sig, size_t *siglen, size_t sigsize,
-    const unsigned char *tbs, size_t tbslen);
-int provBign_verify(void *vctx, const unsigned char *sig, size_t siglen,
-    const unsigned char *tbs, size_t tbslen);
-const OSSL_PARAM *provBign_gettable_params(void *vctx);
-
+extern const OSSL_DISPATCH bign_signature_functions[];
 
 OSSL_CORE_BIO *ossl_prov_bio_new_file(const char *filename, const char *mode);
 OSSL_CORE_BIO *ossl_prov_bio_new_membuf(const char *filename, int len);

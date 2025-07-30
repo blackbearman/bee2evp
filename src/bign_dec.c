@@ -175,7 +175,7 @@ static int bign_key_decoder_decode(void *vctx, OSSL_CORE_BIO *in,
     int ok = 0;
 	unsigned char buf[1000];
 	size_t read = 0;
-    unsigned char* walker;
+    const unsigned char* walker;
     int ret = 0;
     PKCS8_PRIV_KEY_INFO* p8;
     bign_key* key = 0;
@@ -199,7 +199,7 @@ static int bign_key_decoder_decode(void *vctx, OSSL_CORE_BIO *in,
 	if (!key)
 		return 0;
 	memSetZero(key, sizeof(bign_key));
-    printf("45-bign-decoder read (%d) %.*s\n", read, read, buf);
+    printf("45-bign-decoder read (%lu) %.*s\n", read, (int)read, buf);
     walker = buf;
     if (selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) 
     {

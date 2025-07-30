@@ -197,7 +197,6 @@ static int bign_key_encoder_encode(void *vctx, OSSL_CORE_BIO *out, const void *k
                                   const OSSL_PARAM params[], int selection, 
                                   OSSL_PASSPHRASE_CALLBACK *pw_cb, void *pw_cbarg) {
     const bign_key *pkey = (const bign_key *)key;
-	octet* der = 0;
     octet* param = 0;
     octet* privkey = 0;
     octet* pk = 0;
@@ -205,9 +204,7 @@ static int bign_key_encoder_encode(void *vctx, OSSL_CORE_BIO *out, const void *k
 	size_t len = 1000;
 	size_t written = 0;
     char* walker = buf;
-	bool_t specified = TRUE;
     int params_type; 
-    ASN1_OBJECT* alg;
     PKCS8_PRIV_KEY_INFO* p8;
     X509_PUBKEY* pubkey;
     int ret = 0;
@@ -231,7 +228,7 @@ static int bign_key_encoder_encode(void *vctx, OSSL_CORE_BIO *out, const void *k
         strCopy(buf, "-----BEGIN PRIVATE KEY-----\n");
         walker = buf + strlen(buf);
         len = i2d_PKCS8_PRIV_KEY_INFO(p8, &pk);
-        printf("55-bign-encoder p8 %d\n", len);
+        printf("55-bign-encoder p8 %lu\n", len);
         b64From(walker, pk, len);
         walker = buf + strlen(buf);
         strCopy(walker, "\n-----END PRIVATE KEY-----\n");
@@ -248,7 +245,7 @@ static int bign_key_encoder_encode(void *vctx, OSSL_CORE_BIO *out, const void *k
         strCopy(buf, "-----BEGIN PUBLIC KEY-----\n");
         walker = buf + strlen(buf);
         len = i2d_X509_PUBKEY(pubkey, &pk);
-        printf("55-bign-encoder x509 %d\n", len);
+        printf("55-bign-encoder x509 %lu\n", len);
         b64From(walker, pk, len);
         walker = buf + strlen(buf);
         strCopy(walker, "\n-----END PUBLIC KEY-----\n");        

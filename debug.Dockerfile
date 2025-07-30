@@ -52,3 +52,6 @@ RUN cat privkey_plain.pem
 RUN openssl pkey -provider bee2pro -in privkey_plain.pem -pubout -out public_key.pem 
 
 RUN cat public_key.pem
+
+RUN OPENSSL_TRACE=ENCODER openssl dgst -belt-hash -provider bee2pro -sign privkey_plain.pem -hex public_key.pem
+

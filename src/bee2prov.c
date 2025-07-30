@@ -262,21 +262,9 @@ static const OSSL_ALGORITHM bee2_provider_keymgmt[] = {
     { NULL, NULL, NULL, NULL }
 };
 
-/* Signature method dispatch table */
-static const OSSL_DISPATCH bign_signature_functions[] = {
-    { OSSL_FUNC_SIGNATURE_NEWCTX, (void (*)(void))provBign_newctx },
-    { OSSL_FUNC_SIGNATURE_FREECTX, (void (*)(void))provBign_freectx },
-    { OSSL_FUNC_SIGNATURE_SIGN_INIT, (void (*)(void))provBign_sign_init },
-    { OSSL_FUNC_SIGNATURE_VERIFY_INIT, (void (*)(void))provBign_verify_init },
-    { OSSL_FUNC_SIGNATURE_SIGN, (void (*)(void))provBign_sign },
-    { OSSL_FUNC_SIGNATURE_VERIFY, (void (*)(void))provBign_verify },
-    { OSSL_FUNC_SIGNATURE_GETTABLE_CTX_PARAMS, (void (*)(void))provBign_gettable_params },
-    { 0, NULL }
-};
-
 /* Supported signature algorithms */
 static const OSSL_ALGORITHM bee2_provider_signatures[] = {
-    { "RSA", "provider=my_provider", bign_signature_functions, 
+    { "bign", "provider=bee2pro", bign_signature_functions, 
         "STB 34.101.45 (bign): digital signature" },
     { NULL, NULL, NULL, NULL }
 };
@@ -309,19 +297,16 @@ static const OSSL_ALGORITHM *bee2_provider_query_operation(
     /* Example: Provide algorithms for OSSL_OP_DIGEST (hashing), OSSL_OP_CIPHER, etc. */
     *no_cache = 0; /* Set to 1 if you don't want OpenSSL to cache the result */
     switch (operation_id) {
-        //case OSSL_OP_SIGNATURE:
-        //     printf("11-provider signatures\n");
-        //     return bee2_provider_signatures;
+        case OSSL_OP_SIGNATURE:
+             return bee2_provider_signatures;
         case OSSL_OP_DIGEST:
-            /* Return supported digest algorithms */
             return bee2_provider_digests; 
         case OSSL_OP_CIPHER:
-            /* Return supported cipher algorithms */
             return bee2_provider_ciphers; 
         case OSSL_OP_KDF:
-            return bee2_provider_kdfs; /* Provide KDF algorithms */
+            return bee2_provider_kdfs; 
         case OSSL_OP_KEYMGMT:
-            return bee2_provider_keymgmt; /* Provide key management algorithms */
+            return bee2_provider_keymgmt; 
         case OSSL_OP_ENCODER:
             return bee2_provider_encoders;
        case OSSL_OP_DECODER:
@@ -347,14 +332,14 @@ static const OSSL_DISPATCH bee2_provider_dispatch_table[] = {
     { 0, NULL } /* Terminate the list */
 };
 
-OSSL_CORE_HANDLE *prov_core = NULL;
+const OSSL_CORE_HANDLE *prov_core = NULL;
 
 #define OBJ_REG(name)\
 	if (NID_##name == NID_undef) \
 		ossl_core_obj_create(prov_core, OID_##name, SN_##name, LN_##name);
 
 
-static int register_objects(OSSL_CORE_HANDLE *core)
+static int register_objects(const OSSL_CORE_HANDLE *core)
 {
     prov_core = core;
     OBJ_REG(bign_pubkey);
@@ -362,6 +347,7 @@ static int register_objects(OSSL_CORE_HANDLE *core)
     OBJ_REG(bign_curve384v1);
     OBJ_REG(bign_curve512v1);
     OBJ_REG(bign_primefield);
+    return 1;
 }
 
 /* Provider entry point: Called by OpenSSL to initialize the provider */

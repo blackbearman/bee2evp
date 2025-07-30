@@ -67,7 +67,7 @@ static OSSL_FUNC_keymgmt_gettable_params_fn provBign_key_gettable_params;
 static OSSL_FUNC_keymgmt_has_fn provBign_key_has;
 // static OSSL_FUNC_keymgmt_match_fn rsa_match;
 // static OSSL_FUNC_keymgmt_validate_fn rsa_validate;
-// static OSSL_FUNC_keymgmt_import_fn rsa_import;
+static OSSL_FUNC_keymgmt_import_fn provBign_import;
 // static OSSL_FUNC_keymgmt_import_types_fn rsa_import_types;
 static OSSL_FUNC_keymgmt_export_fn provBign_key_export;
 // static OSSL_FUNC_keymgmt_export_types_fn rsa_export_types;
@@ -143,7 +143,7 @@ static void provBign_key_freectx(void *vctx) {
  /* Key loading by object reference, also a constructor */
  void *provBign_key_load(const void *reference, size_t size) {
     bign_key *ctx;
-    printf("Load to BIGN key %d bytes from %d\n", size, sizeof(bign_key));
+    printf("111-bign-kmgmt Load to BIGN key %lu bytes from %lu\n", size, sizeof(bign_key));
 
     if (size == sizeof(bign_key)) {
         /* The contents of the reference is the address to our object */
@@ -151,29 +151,10 @@ static void provBign_key_freectx(void *vctx) {
 
         /* We grabbed, so we detach it */
         *(bign_key **)reference = NULL;
+        bignParamsPrint(ctx->params);
         return ctx;
     }
     return NULL;
-}
-
-/* Load private key from DER format */
-static int my_key_load_from_der(MY_KEY_CTX *ctx, const unsigned char *data, size_t datalen) {
-    const unsigned char *p = data;
-
-    /* Decode the private key from DER format */
-    EVP_PKEY *pkey = d2i_AutoPrivateKey(NULL, &p, datalen);
-    if (pkey == NULL) {
-        ERR_raise(ERR_LIB_PROV, ERR_R_PEM_LIB);
-        return 0;
-    }
-
-    /* Free any existing private key in the context */
-    if (ctx->pkey) {
-        EVP_PKEY_free(ctx->pkey);
-    }
-
-    ctx->pkey = pkey;
-    return 1;
 }
 
 ////////// GEN ///////////////////////////
@@ -389,7 +370,7 @@ static const OSSL_PARAM *provBign_key_gettable_params(void *provctx) {
         // OSSL_PARAM_int(OSSL_PKEY_PARAM_BITS, NULL),
         // OSSL_PARAM_int(OSSL_PKEY_PARAM_SECURITY_BITS, NULL),
         // OSSL_PARAM_int(OSSL_PKEY_PARAM_MAX_SIZE, NULL),
-        // OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_DEFAULT_DIGEST, NULL, 0),
+        OSSL_PARAM_utf8_string("mandatory-digest", NULL, 0),
         // OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_GROUP_NAME, NULL, 0), 
         // OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_EC_ENCODING, NULL, 0), 
         // OSSL_PARAM_utf8_string(OSSL_PKEY_PARAM_EC_POINT_CONVERSION_FORMAT, NULL, 0), 
@@ -414,23 +395,27 @@ static const OSSL_PARAM *provBign_key_gettable_params(void *provctx) {
 
 
 /* Set parameters for loading a private key */
-static int provBign_key_get_params(void *vctx, OSSL_PARAM params[]) {
-    //bign_key *ctx = (bign_key *)vctx;
+static int provBign_key_get_params(void *keydata, OSSL_PARAM params[]) {
+    bign_key *key = (bign_key *)keydata;
     const OSSL_PARAM *p;
+    printf("74-bign_mgmt get params\n");
+    print_params(params);
 
-    if ((p = OSSL_PARAM_locate_const(params, "privkey")) != NULL) {
-        /* Load private key from provided DER-encoded data */
-        // if (!my_key_load_from_der(ctx, p->data, p->data_size)) {
-        //     return 0;
-        // }
+    if ((p = OSSL_PARAM_locate_const(params, "mandatory-digest")) != NULL) {
+        if (key) {
+            if ((key->params->l == 128) && !OSSL_PARAM_set_utf8_string(p, "belt-hash"))
+                return 0;
+            if ((key->params->l == 192) && !OSSL_PARAM_set_utf8_string(p, "bash386"))
+                return 0; 
+            if ((key->params->l == 256) && !OSSL_PARAM_set_utf8_string(p, "bash512"))
+                return 0;       
+        }
     }
-
     return 1;
 }
 
-
 /* Public key extraction */
-static int provBign_key_export(void *vctx, int selection, OSSL_CALLBACK *export_cb, void *cbarg) {
+static int provBign_export(void *vctx, int selection, OSSL_CALLBACK *export_cb, void *cbarg) {
     MY_KEY_CTX *ctx = (MY_KEY_CTX *)vctx;
     OSSL_PARAM params[1];
     EVP_PKEY *pubkey;
@@ -576,9 +561,9 @@ static const OSSL_PARAM *ec_types[] = {
 
 static const OSSL_PARAM *provBign_export_types(int selection)
 {
-    printf("98-bign_export_types %d", selection);
     int type_select = 0;
-
+    printf("98-bign_export_types %d", selection);
+    
     if ((selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY) != 0)
         type_select += 1;
     if ((selection & OSSL_KEYMGMT_SELECT_PUBLIC_KEY) != 0)
@@ -601,6 +586,161 @@ static int provBign_gen_set_template(void *genctx, void *templ)
     return 1;
 }
 
+
+// /*
+//  * Callers of ossl_ec_key_fromdata MUST make sure that ec_key_params_fromdata has
+//  * been called before!
+//  *
+//  * This function only gets the bare keypair, domain parameters and other
+//  * parameters are treated separately, and domain parameters are required to
+//  * define a keypair.
+//  */
+// int ossl_ec_key_fromdata(EC_KEY *ec, const OSSL_PARAM params[], int include_private)
+// {
+//     const OSSL_PARAM *param_priv_key = NULL, *param_pub_key = NULL;
+//     BN_CTX *ctx = NULL;
+//     BIGNUM *priv_key = NULL;
+//     unsigned char *pub_key = NULL;
+//     size_t pub_key_len;
+//     const EC_GROUP *ecg = NULL;
+//     EC_POINT *pub_point = NULL;
+//     int ok = 0;
+
+//     ecg = EC_KEY_get0_group(ec);
+//     if (ecg == NULL)
+//         return 0;
+
+//     param_pub_key =
+//         OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+//     if (include_private)
+//         param_priv_key =
+//             OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PRIV_KEY);
+
+//     ctx = BN_CTX_new_ex(ossl_ec_key_get_libctx(ec));
+//     if (ctx == NULL)
+//         goto err;
+
+//     if (param_pub_key != NULL)
+//         if (!OSSL_PARAM_get_octet_string(param_pub_key,
+//                                          (void **)&pub_key, 0, &pub_key_len)
+//             || (pub_point = EC_POINT_new(ecg)) == NULL
+//             || !EC_POINT_oct2point(ecg, pub_point, pub_key, pub_key_len, ctx))
+//         goto err;
+
+//     if (param_priv_key != NULL && include_private) {
+//         int fixed_words;
+//         const BIGNUM *order;
+
+//         /*
+//          * Key import/export should never leak the bit length of the secret
+//          * scalar in the key.
+//          *
+//          * For this reason, on export we use padded BIGNUMs with fixed length.
+//          *
+//          * When importing we also should make sure that, even if short lived,
+//          * the newly created BIGNUM is marked with the BN_FLG_CONSTTIME flag as
+//          * soon as possible, so that any processing of this BIGNUM might opt for
+//          * constant time implementations in the backend.
+//          *
+//          * Setting the BN_FLG_CONSTTIME flag alone is never enough, we also have
+//          * to preallocate the BIGNUM internal buffer to a fixed public size big
+//          * enough that operations performed during the processing never trigger
+//          * a realloc which would leak the size of the scalar through memory
+//          * accesses.
+//          *
+//          * Fixed Length
+//          * ------------
+//          *
+//          * The order of the large prime subgroup of the curve is our choice for
+//          * a fixed public size, as that is generally the upper bound for
+//          * generating a private key in EC cryptosystems and should fit all valid
+//          * secret scalars.
+//          *
+//          * For padding on export we just use the bit length of the order
+//          * converted to bytes (rounding up).
+//          *
+//          * For preallocating the BIGNUM storage we look at the number of "words"
+//          * required for the internal representation of the order, and we
+//          * preallocate 2 extra "words" in case any of the subsequent processing
+//          * might temporarily overflow the order length.
+//          */
+//         order = EC_GROUP_get0_order(ecg);
+//         if (order == NULL || BN_is_zero(order))
+//             goto err;
+
+//         fixed_words = bn_get_top(order) + 2;
+
+//         if ((priv_key = BN_secure_new()) == NULL)
+//             goto err;
+//         if (bn_wexpand(priv_key, fixed_words) == NULL)
+//             goto err;
+//         BN_set_flags(priv_key, BN_FLG_CONSTTIME);
+
+//         if (!OSSL_PARAM_get_BN(param_priv_key, &priv_key))
+//             goto err;
+//     }
+
+//     if (priv_key != NULL
+//         && !EC_KEY_set_private_key(ec, priv_key))
+//         goto err;
+
+//     if (pub_point != NULL
+//         && !EC_KEY_set_public_key(ec, pub_point))
+//         goto err;
+
+//     ok = 1;
+
+//  err:
+//     BN_CTX_free(ctx);
+//     BN_clear_free(priv_key);
+//     OPENSSL_free(pub_key);
+//     EC_POINT_free(pub_point);
+//     return ok;
+// }
+
+static
+int common_import(void *keydata, int selection, const OSSL_PARAM params[])
+{
+    EC_KEY *ec = keydata;
+    int ok = 1;
+
+    /*
+     * In this implementation, we can export/import only keydata in the
+     * following combinations:
+     *   - domain parameters (+optional other params)
+     *   - public key with associated domain parameters (+optional other params)
+     *   - private key with associated domain parameters and optional public key
+     *         (+optional other params)
+     *
+     * This means:
+     *   - domain parameters must always be requested
+     *   - private key must be requested alongside public key
+     *   - other parameters are always optional
+     */
+    // if ((selection & OSSL_KEYMGMT_SELECT_DOMAIN_PARAMETERS) == 0)
+    //     return 0;
+
+    // ok = ok && ossl_ec_group_fromdata(ec, params);
+
+    // if ((selection & OSSL_KEYMGMT_SELECT_KEYPAIR) != 0) {
+    //     int include_private =
+    //         selection & OSSL_KEYMGMT_SELECT_PRIVATE_KEY ? 1 : 0;
+
+    //     ok = ok && ossl_ec_key_fromdata(ec, params, include_private);
+    // }
+    // if ((selection & OSSL_KEYMGMT_SELECT_OTHER_PARAMETERS) != 0)
+    //     ok = ok && ossl_ec_key_otherparams_fromdata(ec, params);
+
+    return ok;
+}
+
+static
+int provBign_import(void *keydata, int selection, const OSSL_PARAM params[])
+{
+    printf("74-bign_mgmt Call import function\n");
+    return common_import(keydata, selection, params);
+}
+
 /* Dispatch table for key operations */
 const OSSL_DISPATCH bign_key_functions[] = {
     { OSSL_FUNC_KEYMGMT_NEW, (void (*)(void))provBign_key_newctx },
@@ -608,9 +748,11 @@ const OSSL_DISPATCH bign_key_functions[] = {
     { OSSL_FUNC_KEYMGMT_LOAD, (void (*)(void))provBign_key_load },
 //    { OSSL_FUNC_KEYMGMT_GET_PARAMS, (void (*)(void))provBign_key_get_params },
 //    { OSSL_FUNC_KEYMGMT_GETTABLE_PARAMS, (void (*)(void))provBign_key_gettable_params },
-    { OSSL_FUNC_KEYMGMT_EXPORT, (void (*)(void))provBign_key_export },
+    { OSSL_FUNC_KEYMGMT_EXPORT, (void (*)(void))provBign_export },
     { OSSL_FUNC_KEYMGMT_EXPORT_TYPES, (void (*)(void))provBign_export_types },
-
+    { OSSL_FUNC_KEYMGMT_IMPORT, (void (*)(void))provBign_import },
+    { OSSL_FUNC_KEYMGMT_IMPORT_TYPES, (void (*)(void))provBign_export_types },
+    
     { OSSL_FUNC_KEYMGMT_HAS, (void (*)(void))provBign_key_has },
     { OSSL_FUNC_KEYMGMT_GEN_INIT, (void (*)(void))provBign_gen_init },
     { OSSL_FUNC_KEYMGMT_GEN_SET_TEMPLATE, (void (*)(void))provBign_gen_set_template },
